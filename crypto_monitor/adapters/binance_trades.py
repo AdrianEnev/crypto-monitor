@@ -6,6 +6,8 @@ https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-
 import asyncio
 import json
 import random
+import struct
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -51,6 +53,80 @@ def parse_trade(message, symbols):
         raise FeedMessageError("malformed aggregate trade message") from exc
 
 
+class _CheckingSpool:
+    """FIFO for preparation prices, using at most 1 MiB before spilling to disk.
+
+    One event-loop thread owns both positions. No timestamp or touch is dropped
+    while REST preparation is running. Consumed disk space is reclaimed when
+    the remaining tail fits in the bounded buffer; the file closes at handoff.
+    """
+
+    _MEMORY_LIMIT = 1024 * 1024
+    _HEADER = struct.Struct("!I")
+    _MAX_RECORD = 65_536
+
+    def __init__(self):
+        try:
+            self._file = tempfile.SpooledTemporaryFile(max_size=self._MEMORY_LIMIT, mode="w+b")
+        except OSError as exc:
+            raise FeedCallbackError("temporary price backlog unavailable") from exc
+        self._written = self._read = 0
+
+    def append(self, tick):
+        data = json.dumps([tick.symbol, str(tick.price), tick.at.isoformat(),
+                           tick.event_time.isoformat(), tick.trade_id], separators=(",", ":")).encode("utf-8")
+        if len(data) > self._MAX_RECORD:
+            raise FeedMessageError("aggregate trade exceeds price backlog limit")
+        frame = self._HEADER.pack(len(data)) + data
+        try:
+            self._file.seek(self._written)
+            if self._file.write(frame) != len(frame):
+                raise OSError("incomplete price backlog write")
+            self._written += len(frame)
+        except (OSError, ValueError) as exc:
+            raise FeedCallbackError("temporary price backlog write failed") from exc
+
+    def pop(self):
+        if self._read == self._written:
+            return None
+        try:
+            self._file.seek(self._read)
+            header = self._file.read(self._HEADER.size)
+            if len(header) != self._HEADER.size:
+                raise ValueError("incomplete price backlog header")
+            size = self._HEADER.unpack(header)[0]
+            if not 0 < size <= self._MAX_RECORD:
+                raise ValueError("invalid price backlog record")
+            data = self._file.read(size)
+            if len(data) != size:
+                raise ValueError("incomplete price backlog record")
+            self._read += self._HEADER.size + size
+            symbol, price, at, event_time, trade_id = json.loads(data)
+            tick = PriceTick(symbol, Decimal(price), datetime.fromisoformat(at),
+                             datetime.fromisoformat(event_time), trade_id)
+            remaining = self._written - self._read
+            if self._read >= self._MEMORY_LIMIT and remaining <= self._MEMORY_LIMIT:
+                # Copy only a bounded tail, never the entire accumulated backlog.
+                self._file.seek(self._read)
+                tail = self._file.read(remaining)
+                if len(tail) != remaining:
+                    raise ValueError("incomplete price backlog tail")
+                self._file.seek(0)
+                if self._file.write(tail) != remaining:
+                    raise OSError("incomplete price backlog compaction")
+                self._file.truncate(remaining)
+                self._read, self._written = 0, remaining
+            return tick
+        except (OSError, ValueError, TypeError, InvalidOperation, struct.error) as exc:
+            raise FeedCallbackError("temporary price backlog read failed") from exc
+
+    def close(self):
+        try:
+            self._file.close()
+        except OSError as exc:
+            raise FeedCallbackError("temporary price backlog cleanup failed") from exc
+
+
 class TradeSupervisor:
     """Reconnect with backoff; rebuild silent history before resuming live alerts."""
 
@@ -61,6 +137,8 @@ class TradeSupervisor:
         self.rotation_seconds, self.sleep = rotation_seconds, sleep
         self.state, self.error = "stopped", None
         self.reconnects = 0
+        self.on_ready = None
+        self._connected_at = None
         self._changed = asyncio.Event()
 
     def update_symbols(self, symbols):
@@ -73,35 +151,81 @@ class TradeSupervisor:
         url = "wss://fstream.binance.com/market/stream?streams=" + "/".join(
             f"{symbol.lower()}@aggTrade" for symbol in self.symbols)
         symbols = self.symbols
+        self._connected_at = None
         try:
             async with self.connector(url, ping_interval=20, ping_timeout=20,
-                                      open_timeout=10, close_timeout=5, max_queue=1024) as socket:
+                                      open_timeout=10, close_timeout=5,
+                                      max_size=65_536, max_queue=1024) as socket:
                 connected_at = time.monotonic()
                 self.state = "checking"
-                try:
-                    await self.on_connect()
-                except Exception as exc:
-                    raise FeedCallbackError("historical preparation failed") from exc
-                self.state, self.error = "connected", None
-                async def consume():
+                spool = _CheckingSpool()
+                live_prices = asyncio.Queue(maxsize=1024)
+                live = False
+
+                async def read_prices():
+                    read_count = 0
                     async for message in socket:
                         tick = parse_trade(message, symbols)
-                        try:
-                            await self.callback(tick)
-                        except Exception as exc:
-                            raise FeedCallbackError("price processing failed") from exc
+                        if live:
+                            await live_prices.put(tick)
+                        else:
+                            spool.append(tick)
+                        read_count += 1
+                        if read_count % 128 == 0:
+                            # Even a hot socket with immediately ready messages
+                            # must let preparation, stop and replay tasks run.
+                            await asyncio.sleep(0)
                     raise FeedConnectionError("remote connection closed")
-                tasks = [asyncio.create_task(consume()), asyncio.create_task(stop.wait()),
+
+                async def deliver(tick):
+                    try:
+                        await self.callback(tick)
+                    except Exception as exc:
+                        raise FeedCallbackError("price processing failed") from exc
+
+                async def prepare_and_deliver():
+                    nonlocal live
+                    try:
+                        await self.on_connect()
+                    except Exception as exc:
+                        raise FeedCallbackError("historical preparation failed") from exc
+                    replayed = 0
+                    while True:
+                        tick = spool.pop()
+                        if tick is None:
+                            # No await between checking the spool and switching
+                            # the writer: no price can fall between the two paths.
+                            live = True
+                            spool.close()
+                            break
+                        await deliver(tick)
+                        replayed += 1
+                        if replayed % 128 == 0:
+                            await asyncio.sleep(0)
+                    if self.on_ready is not None:
+                        try:
+                            await self.on_ready()
+                        except Exception as exc:
+                            raise FeedCallbackError("live handoff failed") from exc
+                    self._connected_at = time.monotonic()
+                    self.state, self.error = "connected", None
+                    while True:
+                        await deliver(await live_prices.get())
+
+                tasks = [asyncio.create_task(read_prices()), asyncio.create_task(prepare_and_deliver()),
+                         asyncio.create_task(stop.wait()),
                          asyncio.create_task(self._changed.wait()),
                          asyncio.create_task(self.sleep(max(0, self.rotation_seconds - (time.monotonic() - connected_at))))]
                 try:
                     done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-                    if tasks[0] in done:
-                        await tasks[0]
+                    for task in tasks[:2]:
+                        if task in done:
+                            await task
                 finally:
                     for task in tasks:
                         task.cancel()
                     await asyncio.gather(*tasks, return_exceptions=True)
+                    spool.close()
         except (OSError, TimeoutError, WebSocketException) as exc:
             raise FeedConnectionError("trade socket disconnected") from exc
 
@@ -111,7 +235,6 @@ class TradeSupervisor:
             while not stop.is_set():
                 self._changed.clear()
                 self.state = "connecting"
-                started = time.monotonic()
                 try:
                     session = asyncio.create_task(self._session(stop))
                     stopping = asyncio.create_task(stop.wait())
@@ -130,7 +253,7 @@ class TradeSupervisor:
                     if not _transient(exc):
                         self.state = "unhealthy"
                         raise
-                    if time.monotonic() - started >= 60:
+                    if self._connected_at is not None and time.monotonic() - self._connected_at >= 60:
                         ceiling = 1.0
                     self.state = "backoff"
                     delay = ceiling * random.uniform(0.5, 1)

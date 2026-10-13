@@ -34,6 +34,8 @@ Use `--env-file /path/to/settings.env` for a different required file. Use `--lay
 
 The loading screen appears while the monitor selects coins, calculates reference prices, and checks their current watch histories. Completed coins are counted honestly; no invented estimated completion time is shown.
 
+Loading has separate steps: **reference levels**, **past touches**, **loading catch-up**, and **current minutes**. The catch-up step checks the time spent doing the earlier work; it resumes saved history rather than starting the whole research over. Each step has its own counter, so a new step beginning at zero does not erase the completed steps.
+
 For example, if you start on Thursday and a coin touched its previous-week low on Wednesday, that low appears swept earlier if its delay remains active. The historical discovery sends no email and does not appear in the fresh-event panel.
 
 Initial checks cover the current week for previous-week levels, Tuesday onward for the completed Monday range, the current month for previous-month levels, and the current quarter for previous-quarter levels. The program searches activity after each reference became a watched level, rather than the candles that originally created it.
@@ -45,6 +47,8 @@ Historical minute data is useful, not automatically unavailable. A candle can es
 Genuinely missing or malformed required coverage is **unavailable**. That watch is ignored for live alerts until verified; other usable watches continue. No MEXC or BingX prices are substituted for Binance prices. Unavailable watches are retried during refreshes.
 
 Before switching to LIVE, the monitor also checks the forming minute and joins the live feed quietly. A price already beyond a level during startup is recorded without emailing. Events from before the live handoff remain quiet even if they arrive afterward.
+
+The live connection keeps reading prices while those checks run. Prices received during loading are buffered and processed quietly before the LIVE screen appears. This prevents a long history check from leaving the incoming price feed unread. Ordinary prices that cannot activate a verified level are checked without unnecessary database writes.
 
 ## 3. What activates a level now?
 
@@ -98,6 +102,8 @@ If you change a delay in `.env`, eligibility is recalculated from the saved acce
 
 Ctrl+C, SIGTERM, or the terminal's `q` key requests shutdown. In-flight network work may need to return or time out before cleanup finishes. An email already being sent is allowed to finish and save its result.
 
+The terminal keyboard reader leaves screen output in its normal blocking mode. Stopping during preparation is handled as an ordinary shutdown, including on Python 3.14; the expected preparation interruption is not displayed as a failure.
+
 ## 7. Email
 
 Email remains explicitly optional through the existing `--email-enabled`, sender, recipient, and region arguments. AWS authentication continues through its standard provider chain.
@@ -146,6 +152,6 @@ The `research/` studies remain separate historical research. They are not import
 
 ## 10. What was checked
 
-All 378 automated tests passed, including 84 new checks for the touch service. These cover equality, independent sides, fractional delays, restart, quiet history, unavailable data, period resets, separate email, safe shutdown, and selectable terminal layouts.
+Before the October 13 terminal/shutdown fixes, all 378 automated tests passed, including 84 new checks for the touch service. These cover equality, independent sides, fractional delays, restart, quiet history, unavailable data, period resets, separate email, safe shutdown, and selectable terminal layouts. That result describes the initial implementation; the later fixes have not had another test run.
 
 The checks used temporary databases, simulated Binance responses, and mocked email clients. No real email was sent or live monitor session started during verification. Your existing database was not opened for mutation during development. It receives the additive touch tables when you start the configured service.

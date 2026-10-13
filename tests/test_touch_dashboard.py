@@ -2,6 +2,7 @@
 
 import asyncio
 import io
+import termios
 import unittest
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -137,23 +138,28 @@ class KeyboardTests(unittest.TestCase):
         dashboard.handle_key("q", stop, snapshot())
         self.assertTrue(stop.is_set())
 
-    def test_keyboard_restores_terminal_and_blocking_when_body_fails(self):
+    def test_keyboard_restores_terminal_without_changing_blocking_when_body_fails(self):
         stream = MagicMock()
         stream.isatty.return_value = True
         stream.fileno.return_value = 17
-        old_settings = [1, 2, 3]
+        controls = [b"\x00"] * termios.NCCS
+        controls[termios.VMIN] = b"\x01"
+        old_settings = [1, 2, 3, 4, 5, 6, controls]
         with patch("crypto_monitor.ui.touch_dashboard.termios.tcgetattr", return_value=old_settings), \
              patch("crypto_monitor.ui.touch_dashboard.termios.tcsetattr") as restore, \
              patch("crypto_monitor.ui.touch_dashboard.tty.setcbreak") as cbreak, \
-             patch("crypto_monitor.ui.touch_dashboard.os.get_blocking", return_value=True), \
              patch("crypto_monitor.ui.touch_dashboard.os.set_blocking") as blocking:
             with self.assertRaisesRegex(RuntimeError, "fixture"):
                 with keyboard_input(stream):
                     raise RuntimeError("fixture")
             cbreak.assert_called_once()
-            restore.assert_called_once()
+            self.assertEqual(restore.call_count, 2)
+            polling_settings = restore.call_args_list[0].args[2]
+            self.assertEqual(polling_settings[6][termios.VMIN], 0)
+            self.assertEqual(polling_settings[6][termios.VTIME], 0)
             self.assertEqual(restore.call_args.args[2], old_settings)
-            self.assertEqual(blocking.call_args_list[-1].args, (17, True))
+            self.assertEqual(old_settings[6][termios.VMIN], b"\x01")
+            blocking.assert_not_called()
 
     def test_non_tty_does_not_change_terminal(self):
         stream = io.StringIO()

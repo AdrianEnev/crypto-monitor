@@ -14,6 +14,7 @@ from crypto_monitor.adapters.binance_trades import TradeSupervisor
 from crypto_monitor.adapters.touch_email import TouchEmailDispatcher
 from crypto_monitor.core.level_sweep import reference_periods
 from crypto_monitor.core.monitoring_engine import ReferenceLevels
+from crypto_monitor.core.touch_monitor import next_eligible, range_touches
 from crypto_monitor.persistence.touch_store import TouchStore
 from crypto_monitor.runtime.touch_history import TouchHistoryScanner
 
@@ -40,6 +41,41 @@ class TouchRuntime:
         self.error = None
         self.configured_day = None
         self.last_daily_attempt = None
+        self._market_cache = {}
+        self._watch_cache = {}
+
+    def _cache_watches(self, symbol):
+        """Publish immutable eligibility data after this worker changes state.
+
+        SQLite remains authoritative for accepting a touch. This cache only
+        avoids durable work for prices that cannot produce an activation.
+        """
+        watches = []
+        for watch in self.store.history_jobs(symbol):
+            if not watch.available or watch.level_price is None:
+                continue
+            eligible = (next_eligible(watch.name, watch.accepted_at, watch.watch_end,
+                                      self.policy.delays)
+                        if watch.accepted_at is not None else watch.watch_start)
+            watches.append((watch.side, watch.level_price, watch.watch_start,
+                            watch.watch_end, eligible))
+        self._watch_cache[symbol] = tuple(watches)
+
+    def may_touch(self, tick):
+        """Read the cached predicate without I/O, before scheduling SQL work.
+
+        The service calls this while holding its processing lock. Unknown
+        cache entries take the slower path once so direct runtime callers can
+        still initialize their stores and market lists themselves.
+        """
+        if tick.symbol not in self._market_cache:
+            return any(market.symbol == tick.symbol for market in self.markets)
+        watches = self._watch_cache.get(tick.symbol)
+        if watches is None:
+            return True
+        return any(start <= tick.at < end and eligible <= tick.at
+                   and range_touches(side, level, tick.price, tick.price)
+                   for side, level, start, end, eligible in watches)
 
     def check_stop(self):
         if self.cancelled.is_set():
@@ -59,8 +95,13 @@ class TouchRuntime:
         self.configure(asof)
 
     def configure(self, asof):
+        self._market_cache = {market.symbol: market for market in self.markets}
+        self._watch_cache = {symbol: watches for symbol, watches in self._watch_cache.items()
+                             if symbol in self._market_cache}
         self.progress.update(stage="Calculating reference levels", references_done=0, history_done=0,
                              total=len(self.markets))
+        self.progress.pop("catchup_done", None)
+        self.progress.pop("handoff_done", None)
         periods = reference_periods(asof)
         for index, market in enumerate(self.markets):
             self.check_stop()
@@ -75,23 +116,25 @@ class TouchRuntime:
             references = {name: ReferenceLevels(period, levels[name])
                           for name, period in periods.items() if period is not None}
             self.store.initialize_watches(market.symbol, references, asof)
+            self._cache_watches(market.symbol)
             self.progress["references_done"] = index + 1
         self.catch_up(asof)
         self.configured_day = asof.date()
 
-    def catch_up(self, asof):
-        self.progress.update(stage="Checking past touches", history_done=0)
+    def catch_up(self, asof, *, stage="Checking past touches", counter="history_done"):
+        self.progress.update(stage=stage, **{counter: 0})
         scanner = TouchHistoryScanner(self.store, self.rest, self.policy.delays,
                                       cancelled=self.cancelled.is_set)
         for index, market in enumerate(self.markets):
             self.check_stop()
             self.progress["symbol"] = market.symbol
             scanner.scan(market.symbol, asof)
-            self.progress["history_done"] = index + 1
+            self._cache_watches(market.symbol)
+            self.progress[counter] = index + 1
 
     def seed_partial_minutes(self, asof):
         """Cover the currently forming minute quietly; never claim a final close."""
-        self.progress.update(stage="Joining live prices", history_done=0)
+        self.progress.update(stage="Checking current minutes before live alerts", handoff_done=0)
         for index, market in enumerate(self.markets):
             self.check_stop()
             current = self.now()
@@ -120,15 +163,26 @@ class TouchRuntime:
                 for watch in self.store.history_jobs(market.symbol):
                     self.store.mark_history_unavailable(market.symbol, watch.name, watch.source_start,
                                                        f"live handoff unavailable: {type(exc).__name__}")
-            self.progress["history_done"] = index + 1
+            self._cache_watches(market.symbol)
+            self.progress["handoff_done"] = index + 1
 
     def process(self, tick, *, quiet, email_enabled, observed):
-        market = next((market for market in self.markets if market.symbol == tick.symbol), None)
+        market = self._market_cache.get(tick.symbol)
+        if market is None:
+            market = next((market for market in self.markets if market.symbol == tick.symbol), None)
+            if market is not None:
+                self._market_cache[tick.symbol] = market
         if market is None:
             return []
-        return self.store.record_price(tick.symbol, tick.price, tick.at, self.policy.delays,
+        if tick.symbol not in self._watch_cache:
+            self._cache_watches(tick.symbol)
+        if not self.may_touch(tick):
+            return []
+        activations = self.store.record_price(tick.symbol, tick.price, tick.at, self.policy.delays,
             origin="history" if quiet else "live", notify=email_enabled and not quiet,
             quote_volume=market.quote_volume, observed_at=observed, verified_only=True)
+        self._cache_watches(tick.symbol)
+        return activations
 
     def refresh(self, asof, daily):
         self.check_stop()
@@ -145,6 +199,7 @@ class TouchRuntime:
             else:
                 volumes = parse_quote_volumes(self.rest.fetch_tickers())
                 self.markets = tuple(replace(m, quote_volume=volumes[m.symbol]) for m in self.markets)
+                self._market_cache = {market.symbol: market for market in self.markets}
                 # Retry only watches with unavailable reference/history.
                 missing = {row["symbol"] for row in self.store.dashboard_snapshot(
                     self.markets, asof, self.policy.delays)["watches"]
@@ -156,7 +211,10 @@ class TouchRuntime:
                     refs = {name: ReferenceLevels(period, levels[name])
                             for name, period in periods.items() if period is not None}
                     self.store.initialize_watches(symbol, refs, asof)
-                    TouchHistoryScanner(self.store, self.rest, self.policy.delays).scan(symbol, asof)
+                    self._cache_watches(symbol)
+                    TouchHistoryScanner(self.store, self.rest, self.policy.delays,
+                                        cancelled=self.cancelled.is_set).scan(symbol, asof)
+                    self._cache_watches(symbol)
             self.error = None
         except InterruptedError:
             raise
@@ -193,14 +251,25 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
     email = None
     supervisor = None
     last_received = None
+    shutting_down = False
 
     async def work(function, *args, **kwargs):
         future = loop.run_in_executor(executor, lambda: function(*args, **kwargs))
         try:
-            return await asyncio.shield(future)
+            # wait() leaves the executor future intact if this coroutine is
+            # cancelled. Unlike shield() on Python 3.14, it does not log an
+            # expected InterruptedError before cleanup can retrieve it.
+            await asyncio.wait((future,))
+            return future.result()
         except asyncio.CancelledError:
             cancelled.set()
-            await asyncio.gather(future, return_exceptions=True)
+            try:
+                await asyncio.gather(future, return_exceptions=True)
+            finally:
+                # A failed socket may cancel its preparation before reconnecting.
+                # The owning worker has finished before this flag is reused.
+                if not stop.is_set() and not shutting_down:
+                    cancelled.clear()
             raise
 
     async def collector():
@@ -233,15 +302,26 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
 
     async def on_connect():
         nonlocal live_started
+        live_started = None
         async with lock:
             if runtime.configured_day != now().date():
                 await work(runtime.configure, now())
             else:
-                await work(runtime.catch_up, now())
+                await work(runtime.catch_up, now(), stage="Catching up on time spent loading",
+                           counter="catchup_done")
             await work(runtime.seed_partial_minutes, now())
-            live_started = now()
-            loading_stop.set()
-            LOG.info("LIVE: %s selected coins; historical touches recorded quietly", len(runtime.markets))
+            progress.update(stage="Recording prices received while loading", symbol="")
+        # Alternate supervisors used by embedders may have no readiness hook.
+        if not hasattr(supervisor, "on_ready"):
+            await on_ready()
+
+    async def on_ready():
+        nonlocal live_started
+        if stop.is_set():
+            return
+        live_started = now()
+        loading_stop.set()
+        LOG.info("LIVE: %s selected coins; historical touches recorded quietly", len(runtime.markets))
 
     async def process(tick):
         nonlocal last_received
@@ -256,8 +336,9 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
             quiet = (live_started is None or tick.at <= live_started
                      or tick.at > observed + timedelta(seconds=1)
                      or (observed - tick.at).total_seconds() >= float(policy.max_age_seconds))
-            activations = await work(runtime.process, tick, quiet=quiet,
-                                     email_enabled=settings.email.enabled, observed=observed)
+            activations = (await work(runtime.process, tick, quiet=quiet,
+                                      email_enabled=settings.email.enabled, observed=observed)
+                           if runtime.may_touch(tick) else [])
         if not quiet:
             for activation in activations:
                 LOG.info("LIVE TOUCH %s %s %s price=%s", activation.symbol,
@@ -303,6 +384,8 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
         if stop.is_set():
             return
         supervisor = supervisor_factory([m.symbol for m in runtime.markets], process, on_connect)
+        if hasattr(supervisor, "on_ready"):
+            supervisor.on_ready = on_ready
         if settings.email.enabled:
             email = email_factory(settings.database, settings.email,
                 retry_seconds=policy.email_retry_seconds, max_age_seconds=policy.max_age_seconds, now=now)
@@ -321,6 +404,7 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
         if not stop.is_set():
             raise
     finally:
+        shutting_down = True
         cancelled.set()
         loading_stop.set()
         for task in tasks:

@@ -158,7 +158,8 @@ class TouchEmailDispatcher:
             done, _ = await asyncio.wait((work, stopping), return_when=asyncio.FIRST_COMPLETED)
             if stopping in done:
                 self._shutdown_requested.set()
-            return await asyncio.shield(work)
+            await asyncio.wait((work,))
+            return work.result()
         finally:
             if not work.done():
                 self._shutdown_requested.set()

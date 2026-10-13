@@ -272,6 +272,10 @@ def render_loading(progress, *, width=100):
     if total is not None:
         rows.append(text(f"Reference levels   {references} / {total} coins checked"))
         rows.append(text(f"Past touches       {history} / {total} coins checked"))
+        if "catchup_done" in progress:
+            rows.append(text(f"Loading catch-up   {progress['catchup_done']} / {total} coins checked"))
+        if "handoff_done" in progress:
+            rows.append(text(f"Current minutes    {progress['handoff_done']} / {total} coins checked"))
     else:
         rows.append(text("Selecting markets and preparing reference levels…", "dim"))
     if progress.get("symbol"):
@@ -286,31 +290,37 @@ def render_loading(progress, *, width=100):
 
 @contextmanager
 def keyboard_input(stream):
-    """Yield a nonblocking reader only for a real TTY; restore all settings."""
+    """Poll real TTY input without changing shared descriptor blocking flags.
+
+    A shell may duplicate stdin and stdout from one open terminal description.
+    Setting O_NONBLOCK on stdin then changes stdout too, which can make Rich
+    rendering fail with BlockingIOError. VMIN/VTIME affect input reads only.
+    """
     if stream is None or not stream.isatty():
         yield lambda: ""
         return
     descriptor = stream.fileno()
     settings = termios.tcgetattr(descriptor)
-    blocking = os.get_blocking(descriptor)
     try:
         tty.setcbreak(descriptor, termios.TCSANOW)
-        os.set_blocking(descriptor, False)
+        polling_settings = termios.tcgetattr(descriptor)
+        polling_settings = polling_settings[:]
+        polling_settings[6] = polling_settings[6][:]
+        polling_settings[6][termios.VMIN] = 0
+        polling_settings[6][termios.VTIME] = 0
+        termios.tcsetattr(descriptor, termios.TCSANOW, polling_settings)
 
         def read():
             if select.select([descriptor], [], [], 0)[0]:
                 try:
                     return os.read(descriptor, 64).decode("utf-8", errors="ignore")
-                except BlockingIOError:
+                except (BlockingIOError, InterruptedError):
                     return ""
             return ""
 
         yield read
     finally:
-        try:
-            termios.tcsetattr(descriptor, termios.TCSANOW, settings)
-        finally:
-            os.set_blocking(descriptor, blocking)
+        termios.tcsetattr(descriptor, termios.TCSANOW, settings)
 
 
 class TouchDashboard:
