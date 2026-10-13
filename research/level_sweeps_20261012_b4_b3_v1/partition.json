@@ -1,0 +1,16 @@
+{
+  "label": "settlement-screened proxy sensitivity",
+  "cutoff_utc": "2022-11-15T04:30:00Z",
+  "entry_rule": "SRM entry_time >= cutoff is ineligible",
+  "crossing_rule": "SRM entry_time < cutoff and exit_time > cutoff crosses",
+  "exit_at_cutoff": "Entry before cutoff with exit exactly at cutoff is retained by this screen",
+  "source_trade_rows": 3547257,
+  "retained_trade_rows": 3547247,
+  "quarantined_trade_rows": 10,
+  "quarantined_event_ids": 1,
+  "entries_at_or_after_cutoff": 0,
+  "holdings_crossing_cutoff": 10,
+  "signals_regenerated": false,
+  "trades_resimulated": false,
+  "settlement_pnl_estimated": false
+}

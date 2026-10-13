@@ -1,0 +1,12 @@
+{
+  "study_start": "2022-10-01T00:00:00+00:00",
+  "study_end_exclusive": "2023-07-01T00:00:00+00:00",
+  "symbol_days": 5460,
+  "selected_symbols": 150,
+  "archives_requested": 906,
+  "archives_available": 890,
+  "compressed_minute_bytes": 1311622344,
+  "estimated_raw_plus_parsed_bytes": 6558111720,
+  "compressed_limit_bytes": 4294967296,
+  "selection": "prior complete UTC day quote volume; eligibility proxy only"
+}

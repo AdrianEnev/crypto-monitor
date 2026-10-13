@@ -1,0 +1,13 @@
+--- original/engine.py
++++ b4_v1/engine.py
+@@ -156,7 +156,9 @@
+                                         else:reason='next_confirmation_failed';busy=second
+                             if end is None:
+                                 if reason=='confirmation_timeout' and until<i+361: reason='membership_reference_gap_or_split_expiry'
+-                                busy=max(busy,until+1 if reason!='next_confirmation_failed' else busy)
++                                # B4: the candle opening at six-hour expiry is no longer pending.
++                                if reason=='confirmation_timeout':busy=max(busy,until)
++                                elif reason!='next_confirmation_failed':busy=max(busy,until+1)
+                                 event.update(status=reason,confirmation_time=None,first_confirmation_time=None)
+                             else:
+                                 busy=end

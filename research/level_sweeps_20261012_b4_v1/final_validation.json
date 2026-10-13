@@ -1,0 +1,40 @@
+{
+  "completed_utc": "2026-10-12T16:58:29.314488+00:00",
+  "version": "B4-v1",
+  "scope": "2022-10-01 inclusive to 2023-07-01 exclusive",
+  "holdout_status": "diagnostic; previously inspected, not fresh untouched",
+  "research_tests_passed": 19,
+  "live_tests_passed": 287,
+  "cli_help_exit_code": 0,
+  "regression_failed_before_fix": true,
+  "original_srm_flags_preserved": 10,
+  "fresh_raw_archive_parses": 3711,
+  "raw_and_parsed_integrity": "pass",
+  "comparisons": {
+    "events": {
+      "original": 334339,
+      "corrected": 334380,
+      "added": 159,
+      "removed": 118,
+      "changed": 0,
+      "unchanged": 334221
+    },
+    "trades": {
+      "original": 3547157,
+      "corrected": 3547257,
+      "added": 810,
+      "removed": 710,
+      "changed": 0,
+      "unchanged": 3546447
+    }
+  },
+  "original_study_files_unchanged": 475,
+  "live_files_unchanged": 40,
+  "file_sets_unchanged": true,
+  "protocol_unchanged": true,
+  "unresolved": [
+    "B1 historical eligibility",
+    "B2 true historical tick sizes",
+    "B3 SRM settlement flags retained in proxy aggregates"
+  ]
+}

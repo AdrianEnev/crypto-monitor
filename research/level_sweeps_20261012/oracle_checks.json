@@ -1,0 +1,7 @@
+{
+  "pure_core_sha256": "83b674ed1acdadb412c5934cc8aba6acc536c5ae8c48ecd6a859e3cd8914f90f",
+  "reference_timestamp_checks": 1461,
+  "pilot_live_predicate_decimal_checks": 775,
+  "mismatches": 0,
+  "mode": "read-only isolated pure-core oracle; no runtime or adapter calls"
+}

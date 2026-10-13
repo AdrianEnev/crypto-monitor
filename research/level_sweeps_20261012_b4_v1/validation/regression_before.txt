@@ -1,0 +1,15 @@
+test_sweep_opening_at_six_hour_expiry_is_eligible_when_closed (test_timeout_boundary.TimeoutBoundaryTests.test_sweep_opening_at_six_hour_expiry_is_eligible_when_closed) ... FAIL
+
+======================================================================
+FAIL: test_sweep_opening_at_six_hour_expiry_is_eligible_when_closed (test_timeout_boundary.TimeoutBoundaryTests.test_sweep_opening_at_six_hour_expiry_is_eligible_when_closed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/adrian/Documents/Code/Personal/crypto-monitor/research/level_sweeps_20261012_b4_v1/test_timeout_boundary.py", line 32, in test_sweep_opening_at_six_hour_expiry_is_eligible_when_closed
+    self.assertEqual(len(eligible), 1, 'Sweep opening exactly at expiry must be eligible once closed')
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: 0 != 1 : Sweep opening exactly at expiry must be eligible once closed
+
+----------------------------------------------------------------------
+Ran 1 test in 0.035s
+
+FAILED (failures=1)

@@ -1,0 +1,10 @@
+{
+  "completed_utc": "2026-10-12T12:20:57.483320+00:00",
+  "split_names": [
+    "holdout"
+  ],
+  "symbols": 108,
+  "correction": "B4-v1",
+  "recomputed_from_scratch": true,
+  "holdout_status": "diagnostic: previously inspected April-June 2023; not a fresh untouched test"
+}

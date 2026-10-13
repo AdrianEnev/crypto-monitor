@@ -1,0 +1,20 @@
+{
+  "completed_utc": "2026-10-12T11:55:09.724081+00:00",
+  "arithmetic_chronology_and_full_grid": [
+    {
+      "stage": "development",
+      "trade_rows_checked": 2389812,
+      "full_grid_cells": 4480,
+      "status": "pass"
+    },
+    {
+      "stage": "holdout",
+      "trade_rows_checked": 1157345,
+      "full_grid_cells": 2240,
+      "status": "pass"
+    }
+  ],
+  "unchanged_live_files": 40,
+  "protocol_unchanged": true,
+  "holdout_locked_code_unchanged": true
+}

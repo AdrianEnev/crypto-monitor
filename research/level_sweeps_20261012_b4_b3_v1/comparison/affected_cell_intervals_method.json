@@ -1,0 +1,9 @@
+{
+  "label": "settlement-screened proxy sensitivity; diagnostic cell-level intervals",
+  "scope": "Ten affected level/direction cells only; B4 published variant-level intervals, not these cell intervals",
+  "method": "500 crossed symbol x UTC calendar-week bootstrap replicates; seed 20261012",
+  "pairing": "B4 per-cell starting RNG states reused for screened cell; recompute using retained symbol/week counts",
+  "metric": "mean net_base_no_funding_r",
+  "multiplicity": "Unadjusted exploratory intervals; not profitability evidence",
+  "new_strategy_parameters": false
+}

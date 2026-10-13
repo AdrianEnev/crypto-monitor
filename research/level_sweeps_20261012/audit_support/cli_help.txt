@@ -1,0 +1,27 @@
+usage: python -m crypto_monitor [-h] [--database DATABASE] [--top-n TOP_N]
+                                [--include INCLUDE] [--exclude EXCLUDE]
+                                [--email-enabled]
+                                [--email-sender EMAIL_SENDER]
+                                [--email-recipient EMAIL_RECIPIENT]
+                                [--email-region EMAIL_REGION] [--no-tui]
+                                [--stale-after-minutes STALE_AFTER_MINUTES]
+
+Binance USD-M level-sweep monitor
+
+options:
+  -h, --help            show this help message and exit
+  --database DATABASE   SQLite file (default: ./monitor.sqlite3)
+  --top-n TOP_N         top eligible markets by quote volume (default: 20)
+  --include INCLUDE     comma-separated additional eligible symbols
+  --exclude EXCLUDE     comma-separated excluded symbols (always win)
+  --email-enabled       explicitly enable SES digest delivery
+  --email-sender EMAIL_SENDER
+                        verified SES sender address
+  --email-recipient EMAIL_RECIPIENT
+                        single digest recipient address
+  --email-region EMAIL_REGION
+                        AWS region containing the verified SES identity
+  --no-tui              plain logs even on an interactive terminal
+  --stale-after-minutes STALE_AFTER_MINUTES
+                        dashboard committed-candle age threshold in minutes
+                        (default: 3)

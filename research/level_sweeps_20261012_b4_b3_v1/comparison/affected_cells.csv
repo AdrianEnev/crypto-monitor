@@ -1,0 +1,11 @@
+split,sweep_type,timeframe,stop_rule,target_rule,entry_rule,level,side,original_count,retained_count,quarantined_count,original_gross_mean,screened_gross_mean,original_base_net_mean,screened_base_net_mean
+train,reclaim_only,1,1.25x,opposing,next_open,monday_high,long,4812,4811,1,-0.1515283861064988,-0.1522291818633283,-1.4071000073333269,-1.4080566831472254
+train,reclaim_only,1,1.25x,opposing,signal_close,monday_high,long,4813,4812,1,-0.1602334389018387,-0.1609358980537302,-1.372870293660603,-1.3738196572572352
+train,reclaim_only,1,1.5x,opposing,next_open,monday_high,long,4812,4811,1,-0.1538811174560455,-0.1544708523242203,-1.2375693916398594,-1.2383801292902614
+train,reclaim_only,1,1.5x,opposing,signal_close,monday_high,long,4813,4812,1,-0.1505365446915126,-0.1511254619562725,-1.1886395786987196,-1.189439979576347
+train,reclaim_only,1,2x,opposing,next_open,monday_high,long,4812,4811,1,-0.1447313663996573,-0.1451797620276764,-0.9910937022457984,-0.9917148331511364
+train,reclaim_only,1,2x,opposing,signal_close,monday_high,long,4813,4812,1,-0.1329375693871991,-0.1333834209186594,-0.9286431958772507,-0.9292512196260476
+train,reclaim_only,1,baseline,opposing,next_open,monday_high,long,4812,4811,1,-0.1247134531975198,-0.1255760001634723,-1.8175534493855232,-1.818761490877116
+train,reclaim_only,1,baseline,opposing,signal_close,monday_high,long,4813,4812,1,-0.1458108293493902,-0.1466775813920646,-1.737306127346091,-1.7384972412891528
+train,reclaim_only,1,excursion,opposing,next_open,monday_high,long,4813,4812,1,-0.0815817813668876,-0.0824282729127224,-1.2181910758297818,-1.219267450355203
+train,reclaim_only,1,excursion,opposing,signal_close,monday_high,long,4813,4812,1,-0.096875557743037,-0.097725227546639,-1.2047784800722663,-1.2058520672752109

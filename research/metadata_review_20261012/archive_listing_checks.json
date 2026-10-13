@@ -1,0 +1,76 @@
+[
+  {
+    "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?list-type=2&prefix=data%2F&delimiter=%2F&max-keys=1000",
+    "file": "listing_data_.xml",
+    "bytes": 464,
+    "sha256": "67aa51935927e540726dec58ebe0aa86211828d4630b24c73481bb66b3399e5d",
+    "retrieved_utc": "2026-10-12T17:21:24.874117+00:00",
+    "is_truncated": "false",
+    "prefixes": [
+      "data/futures/",
+      "data/option/",
+      "data/spot/"
+    ]
+  },
+  {
+    "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?list-type=2&prefix=data%2Ffutures%2F&delimiter=%2F&max-keys=1000",
+    "file": "listing_data_futures_.xml",
+    "bytes": 419,
+    "sha256": "b2e744e1114a26cc4257b455fe842e38c358684f383260ff9d0bfca557ec6e39",
+    "retrieved_utc": "2026-10-12T17:21:25.749335+00:00",
+    "is_truncated": "false",
+    "prefixes": [
+      "data/futures/cm/",
+      "data/futures/um/"
+    ]
+  },
+  {
+    "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?list-type=2&prefix=data%2Ffutures%2Fum%2F&delimiter=%2F&max-keys=1000",
+    "file": "listing_data_futures_um_.xml",
+    "bytes": 436,
+    "sha256": "11354144ffbc3bb0cbb0452c4e1ff154bee40c7cfc2fcc9da9d1ea8624ae35ee",
+    "retrieved_utc": "2026-10-12T17:21:26.692073+00:00",
+    "is_truncated": "false",
+    "prefixes": [
+      "data/futures/um/daily/",
+      "data/futures/um/monthly/"
+    ]
+  },
+  {
+    "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?list-type=2&prefix=data%2Ffutures%2Fum%2Fdaily%2F&delimiter=%2F&max-keys=1000",
+    "file": "listing_data_futures_um_daily_.xml",
+    "bytes": 1049,
+    "sha256": "88260a141753b559e581170ffec020a0d9299f5a108bb21cf26de24760bff8c1",
+    "retrieved_utc": "2026-10-12T17:21:27.640775+00:00",
+    "is_truncated": "false",
+    "prefixes": [
+      "data/futures/um/daily/aggTrades/",
+      "data/futures/um/daily/bookDepth/",
+      "data/futures/um/daily/bookTicker/",
+      "data/futures/um/daily/indexPriceKlines/",
+      "data/futures/um/daily/klines/",
+      "data/futures/um/daily/markPriceKlines/",
+      "data/futures/um/daily/metrics/",
+      "data/futures/um/daily/premiumIndexKlines/",
+      "data/futures/um/daily/trades/"
+    ]
+  },
+  {
+    "url": "https://s3-ap-northeast-1.amazonaws.com/data.binance.vision?list-type=2&prefix=data%2Ffutures%2Fum%2Fmonthly%2F&delimiter=%2F&max-keys=1000",
+    "file": "listing_data_futures_um_monthly_.xml",
+    "bytes": 989,
+    "sha256": "7a3f464158cde257f043ded11083efb7c1d80e5107904e5611d8b8b76b20416a",
+    "retrieved_utc": "2026-10-12T17:21:28.579574+00:00",
+    "is_truncated": "false",
+    "prefixes": [
+      "data/futures/um/monthly/aggTrades/",
+      "data/futures/um/monthly/bookTicker/",
+      "data/futures/um/monthly/fundingRate/",
+      "data/futures/um/monthly/indexPriceKlines/",
+      "data/futures/um/monthly/klines/",
+      "data/futures/um/monthly/markPriceKlines/",
+      "data/futures/um/monthly/premiumIndexKlines/",
+      "data/futures/um/monthly/trades/"
+    ]
+  }
+]

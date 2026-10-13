@@ -1,0 +1,12 @@
+{
+  "stage": "holdout",
+  "armed_events": 109059,
+  "confirmed_events": 59309,
+  "simulated_trade_variants": 1157405,
+  "distinct_event_ids_with_trades": 59309,
+  "symbols_with_trades": 87,
+  "full_grid_cells": 2240,
+  "zero_trade_cells": 0,
+  "ambiguous_trade_variants": 5712,
+  "funding_omitted_trade_variants": 9847
+}

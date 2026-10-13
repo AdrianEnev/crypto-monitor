@@ -1,0 +1,5 @@
+symbol,month,armed_events,confirmed_events,trade_variants,path_checks,purpose
+BTCUSDT,2022-11,1268,701,13230,pass,mechanics only; fixed pilot universe
+DOGEUSDT,2022-11,2191,1301,25980,pass,mechanics only; fixed pilot universe
+FTTUSDT,2022-11,925,522,10320,pass,mechanics only; fixed pilot universe
+BTCUSDT,2023-03,1237,640,12240,pass,mechanics only; fixed pilot universe

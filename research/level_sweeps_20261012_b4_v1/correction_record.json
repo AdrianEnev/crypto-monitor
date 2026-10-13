@@ -1,0 +1,25 @@
+{
+  "version": "B4-v1",
+  "created_utc": "2026-10-12T12:14:33.194636+00:00",
+  "original_study": "research/level_sweeps_20261012",
+  "protocol_sha256": "793eda7ddaf0d981709a5594e9d87b4072b18dc6918b855de4bafc4334c92852",
+  "changed_original_source_files": [
+    "engine.py"
+  ],
+  "source_patch": "engine.patch",
+  "new_source_files": [
+    "test_timeout_boundary.py",
+    "correction.py"
+  ],
+  "regression_failed_before_fix": true,
+  "regression_log": "validation/regression_before.txt",
+  "holdout_status": "April-June 2023 diagnostic; previously inspected; not a fresh untouched test",
+  "scope": "2022-10-01 inclusive to 2023-07-01 exclusive; unchanged 150-symbol proxy universe",
+  "unresolved": [
+    "historical symbol eligibility",
+    "true historical tick sizes",
+    "known SRM settlement overlaps retained and flagged"
+  ],
+  "volatility_bins": "retain original frozen training thresholds; do not refit",
+  "data_policy": "fresh parse of all pinned raw cached ZIPs into isolated version-specific external cache; network disabled; no append"
+}

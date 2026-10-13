@@ -1,0 +1,11 @@
+split,sweep_type,timeframe,stop_rule,target_rule,entry_rule,level,side,cutoff_reason,quarantined_rows
+train,reclaim_only,1,1.25x,opposing,next_open,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,1.25x,opposing,signal_close,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,1.5x,opposing,next_open,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,1.5x,opposing,signal_close,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,2x,opposing,next_open,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,2x,opposing,signal_close,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,baseline,opposing,next_open,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,baseline,opposing,signal_close,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,excursion,opposing,next_open,monday_high,long,holding_crosses_settlement,1
+train,reclaim_only,1,excursion,opposing,signal_close,monday_high,long,holding_crosses_settlement,1

@@ -1,0 +1,10 @@
+{
+  "checked_variant_split_rows": 280,
+  "unchanged_columns": [
+    "completed_trades",
+    "gross_expectancy_r",
+    "net_base_no_funding_expectancy_r"
+  ],
+  "maximum_difference": 0.0,
+  "holdout_not_started": true
+}

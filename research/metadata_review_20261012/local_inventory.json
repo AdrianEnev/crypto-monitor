@@ -1,0 +1,15 @@
+{
+  "cache_file_extensions": {
+    ".json": 8506,
+    ".parquet": 7422,
+    ".CHECKSUM": 3711,
+    ".zip": 3711
+  },
+  "listing_files": 1049,
+  "original_artifact_counts": {
+    "level_sweeps_20261012_b4_v1": 617,
+    "level_sweeps_20261012_b4_b3_v1": 63,
+    "level_sweeps_20261012": 475
+  },
+  "live_files": 40
+}

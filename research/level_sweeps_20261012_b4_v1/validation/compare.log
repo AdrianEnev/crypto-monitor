@@ -1,0 +1,11 @@
+Compared development events
+Compared development trades
+Compared holdout events
+Compared holdout trades
+     split   kind  original  corrected  added  removed  changed  unchanged
+     train events    105511     105519     35       27        0     105484
+validation events    119785     119802     62       45        0     119740
+     train trades   1103536    1103516    160      180        0    1103356
+validation trades   1286276    1286336    270      210        0    1286066
+   holdout events    109043     109059     62       46        0     108997
+   holdout trades   1157345    1157405    380      320        0    1157025

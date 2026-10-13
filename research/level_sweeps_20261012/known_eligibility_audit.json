@@ -1,0 +1,27 @@
+{
+  "notices": [
+    {
+      "symbol": "SRMUSDT",
+      "settlement_utc": "2022-11-15T04:30:00Z",
+      "publication_utc": "2022-11-14T07:00:00Z",
+      "source": "https://www.binance.com/en/support/announcement/detail/9a6676662bd5417c92267953f3819dd0",
+      "flagged_trade_variants": 10,
+      "entries_after_settlement": 0,
+      "holdings_crossing_settlement": 10,
+      "observed_later_minutes_same_day": 1169,
+      "zero_trade_later_minutes_same_day": 1169
+    },
+    {
+      "symbol": "RAYUSDT",
+      "settlement_utc": "2022-11-15T04:00:00Z",
+      "publication_utc": "2022-11-14T07:00:00Z",
+      "source": "https://www.binance.com/en/support/announcement/detail/9a6676662bd5417c92267953f3819dd0",
+      "flagged_trade_variants": 0,
+      "entries_after_settlement": 0,
+      "holdings_crossing_settlement": 0,
+      "observed_later_minutes_same_day": null,
+      "zero_trade_later_minutes_same_day": null
+    }
+  ],
+  "note": "Separate known-ineligibility annotation; proxy trades are retained for full disclosure, not presented as executable evidence."
+}

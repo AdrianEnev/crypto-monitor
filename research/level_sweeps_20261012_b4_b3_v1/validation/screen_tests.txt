@@ -1,0 +1,11 @@
+test_duplicate_flags_block_analysis (test_screen.SettlementScreenTests.test_duplicate_flags_block_analysis) ... ok
+test_exact_cutoff_rules (test_screen.SettlementScreenTests.test_exact_cutoff_rules) ... ok
+test_interval_rng_does_not_shift_unaffected_groups (test_screen.SettlementScreenTests.test_interval_rng_does_not_shift_unaffected_groups) ... ok
+test_missing_known_flag_blocks_analysis (test_screen.SettlementScreenTests.test_missing_known_flag_blocks_analysis) ... ok
+test_partition_join_preserves_values_and_reconciles (test_screen.SettlementScreenTests.test_partition_join_preserves_values_and_reconciles) ... ok
+test_wrongly_flagged_eligible_row_blocks_analysis (test_screen.SettlementScreenTests.test_wrongly_flagged_eligible_row_blocks_analysis) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.053s
+
+OK

@@ -1,0 +1,131 @@
+{"symbol": "BTCUSDT", "stage": "development", "events_reproduced": 8876, "trade_rows_reproduced": 94910, "qualifying_candidates_suppressed_after_timeout": 6}
+{"symbol": "BTCUSDT", "stage": "holdout", "events_reproduced": 7545, "trade_rows_reproduced": 85900, "qualifying_candidates_suppressed_after_timeout": 3}
+{"symbol": "SRMUSDT", "stage": "development", "events_reproduced": 13, "trade_rows_reproduced": 40, "qualifying_candidates_suppressed_after_timeout": 0}
+{"symbol": "FTTUSDT", "stage": "development", "events_reproduced": 421, "trade_rows_reproduced": 4730, "qualifying_candidates_suppressed_after_timeout": 0}
+{
+  "fresh_parses_matching_cached_frames": 67,
+  "sampled_covered_funding_cashflows_checked": 5008,
+  "replays": [
+    {
+      "symbol": "BTCUSDT",
+      "stage": "development",
+      "events_reproduced": 8876,
+      "trade_rows_reproduced": 94910,
+      "qualifying_candidates_suppressed_after_timeout": 6
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "holdout",
+      "events_reproduced": 7545,
+      "trade_rows_reproduced": 85900,
+      "qualifying_candidates_suppressed_after_timeout": 3
+    },
+    {
+      "symbol": "SRMUSDT",
+      "stage": "development",
+      "events_reproduced": 13,
+      "trade_rows_reproduced": 40,
+      "qualifying_candidates_suppressed_after_timeout": 0
+    },
+    {
+      "symbol": "FTTUSDT",
+      "stage": "development",
+      "events_reproduced": 421,
+      "trade_rows_reproduced": 4730,
+      "qualifying_candidates_suppressed_after_timeout": 0
+    }
+  ],
+  "timeout_examples": [
+    {
+      "symbol": "BTCUSDT",
+      "stage": "development",
+      "expired_event": "af71ef64b898496b85345ade",
+      "level": "monday_high",
+      "side": "long",
+      "sweep_type": "delayed_reclaim",
+      "timeframe": 60,
+      "candidate_open": "2023-03-31T06:07:00+00:00"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "development",
+      "expired_event": "c05236c998ce7bdaeaf6fc2f",
+      "level": "monday_high",
+      "side": "long",
+      "sweep_type": "close_beyond",
+      "timeframe": 60,
+      "candidate_open": "2023-03-31T06:07:00+00:00"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "development",
+      "expired_event": "2fda847a10d595051285fd1b",
+      "level": "previous_month_high",
+      "side": "short",
+      "sweep_type": "delayed_reclaim",
+      "timeframe": 60,
+      "candidate_open": "2023-02-23T21:26:00+00:00"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "development",
+      "expired_event": "a6c828ac303c2c6446b6429c",
+      "level": "previous_month_high",
+      "side": "short",
+      "sweep_type": "close_beyond",
+      "timeframe": 60,
+      "candidate_open": "2023-02-23T21:26:00+00:00"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "development",
+      "expired_event": "286a29883c7d95cdc968a93c",
+      "level": "previous_month_high",
+      "side": "long",
+      "sweep_type": "live_1m",
+      "timeframe": 60,
+      "candidate_open": "2023-02-22T14:21:00+00:00"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "development",
+      "expired_event": "0da9bd0e391ca4bed9028261",
+      "level": "previous_month_high",
+      "side": "long",
+      "sweep_type": "delayed_reclaim",
+      "timeframe": 60,
+      "candidate_open": "2023-02-22T14:21:00+00:00"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "holdout",
+      "expired_event": "6a25780b3676590031d2aef8",
+      "level": "previous_week_low",
+      "side": "short",
+      "sweep_type": "delayed_reclaim",
+      "timeframe": 5,
+      "candidate_open": "2023-05-10T11:54:00+00:00"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "holdout",
+      "expired_event": "2edbfa34646a8d1a01dbb504",
+      "level": "previous_week_low",
+      "side": "short",
+      "sweep_type": "delayed_reclaim",
+      "timeframe": 60,
+      "candidate_open": "2023-06-08T12:44:00+00:00"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "stage": "holdout",
+      "expired_event": "e0672c06862c9acda79bccb5",
+      "level": "previous_week_low",
+      "side": "long",
+      "sweep_type": "close_beyond",
+      "timeframe": 60,
+      "candidate_open": "2023-04-21T06:29:00+00:00"
+    }
+  ],
+  "scope": "Representative raw-to-result replay, not a full-window rerun; unchanged original engine; no corrected performance produced."
+}

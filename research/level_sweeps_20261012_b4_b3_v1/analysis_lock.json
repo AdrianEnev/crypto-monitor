@@ -1,0 +1,26 @@
+{
+  "version": "B4-B3-v1",
+  "created_utc": "2026-10-12T17:08:53.003257+00:00",
+  "label": "settlement-screened proxy sensitivity",
+  "source": "level_sweeps_20261012_b4_v1",
+  "code_sha256": {
+    "screen.py": "66592a259846cc2a950f9026df164f1e10664bc59dab932565b80a72921adcee",
+    "test_screen.py": "321802aae445f9ef787d882959e54451f7361328a00879575c9c8ab334e65f82",
+    "analyze.py": "d6344624e2c37a6aee3a1e590856a68a2fc8e1a28ca3cdd84ad6a25c605e4062",
+    "cell_intervals.py": "5541ab56c91edc87caccb5611372c6825e0d01e90cac367393e2abe2c7bd0025"
+  },
+  "protocol_sha256": "793eda7ddaf0d981709a5594e9d87b4072b18dc6918b855de4bafc4334c92852",
+  "holdout_label": "April-June 2023 diagnostic; previously inspected, not fresh untouched",
+  "scope": "2022-10-01 inclusive to 2023-07-01 exclusive",
+  "signals_regenerated": false,
+  "trades_resimulated": false,
+  "settlement_pnl_estimated": false,
+  "cutoff_utc": "2022-11-15T04:30:00Z",
+  "rng_policy": "Preserve each B4 variant/split RNG starting state, then resample retained symbols/weeks using unchanged 500 replicates and seed 20261012; verify original intervals and unchanged groups",
+  "unresolved": [
+    "historical eligibility beyond this known SRM cutoff",
+    "true historical tick sizes"
+  ],
+  "cell_interval_analysis_added_utc": "2026-10-12T17:09:56.970498+00:00",
+  "cell_interval_scope": "Requested diagnostic before/after intervals for ten affected level/direction cells, using the same fixed 500-replicate crossed bootstrap and seed; no B4 cell intervals previously existed"
+}

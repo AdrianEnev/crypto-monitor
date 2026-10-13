@@ -1,0 +1,33 @@
+{
+  "level_sweeps_20261012_b4_v1": {
+    "checked_files": 617,
+    "changed_or_missing": [],
+    "added_non_environment_files": []
+  },
+  "level_sweeps_20261012_b4_b3_v1": {
+    "checked_files": 63,
+    "changed_or_missing": [],
+    "added_non_environment_files": []
+  },
+  "level_sweeps_20261012": {
+    "checked_files": 475,
+    "changed_or_missing": [],
+    "added_non_environment_files": []
+  },
+  "live": {
+    "checked_files": 40,
+    "changed_or_missing": []
+  },
+  "listing_sources": {
+    "checked_files": 5,
+    "mismatches": []
+  },
+  "candidate_inventory": {
+    "rows": 196,
+    "unique_symbols": 196,
+    "selected": 150,
+    "unselected_without_minute_cache": 46
+  },
+  "all_original_files_unchanged": true,
+  "checked_utc": "2026-10-12T17:27:22.571330+00:00"
+}

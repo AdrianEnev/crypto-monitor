@@ -1,0 +1,29 @@
+{
+  "locked_utc": "2026-10-12T12:14:33.194636+00:00",
+  "volatility_training_cutpoints": [
+    0.0010108145845886965,
+    0.0016435386564361012
+  ],
+  "training_events_for_cutpoints": 56320,
+  "strategy_changes_after_pilot": false,
+  "no_winner_selection": true,
+  "code_sha256": {
+    "run.py": "3ef617faf33af25c3f7560baa2de38bb25df86ee1d23d291533b69df996e10ab",
+    "oracle_checks.py": "58c78893f1f495221ae86a98487e14b50d765c862c2daf68fadd788a145f79c2",
+    "eligibility_audit.py": "c27face3e911ba822bba5e0f20db1783a4096b44a0e9c6978bc62400ba4434d2",
+    "test_research.py": "516a0cb2ace7f8cdff2737be7a91992744d4eb14d8fa19ea8d87f8acd8407fea",
+    "build_report.py": "f6bc1b784142e34d85a868d450dc0491f322b06272f6ab9bbbdcad14dea93592",
+    "audit_results.py": "fc4a19caf23304578cfdc01d5ec116d97dfa213bd4f1d862eaa07a99c3e425b2",
+    "engine.py": "bb2d93a99ce82466154776e20b35785438a38a4e23cfefca3982154594645edd",
+    "pilot_data.py": "5fd2dbd2f46f7a14609d56829cee3d51d44b7721ab97651d62123fa6e40a1a82",
+    "correction.py": "898175cfaaf01d6d37aca3201e9edb17e2885cd8c6d04a5798db4e521322b617",
+    "test_timeout_boundary.py": "f191228225abe66ca3e00ff0778cc146ad6d81fdd32242baa08130eed6524e59",
+    "prepare.py": "38f69bde0decf6ddde0f07d58713eb81290c042439c9b355ed0047d464eace5e",
+    "data.py": "4fb3fec5957bb96fe568f5d8a51410fdb7acdf638a1ad627445fde4c564318b4",
+    "analyze.py": "d6344624e2c37a6aee3a1e590856a68a2fc8e1a28ca3cdd84ad6a25c605e4062"
+  },
+  "protocol_sha256": "793eda7ddaf0d981709a5594e9d87b4072b18dc6918b855de4bafc4334c92852",
+  "original_lock_utc": "2026-10-12T11:52:06.141642+00:00",
+  "diagnostic_inspected_holdout": true,
+  "correction": "B4-v1 only; no strategy parameter changes; original volatility bins retained"
+}

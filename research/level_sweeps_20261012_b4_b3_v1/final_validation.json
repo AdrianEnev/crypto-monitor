@@ -1,0 +1,37 @@
+{
+  "completed_utc": "2026-10-12T17:14:45.397111+00:00",
+  "version": "B4-B3-v1",
+  "label": "settlement-screened proxy sensitivity",
+  "source_trade_rows": 3547257,
+  "retained_trade_rows": 3547247,
+  "quarantined_rows": 10,
+  "quarantined_events": 1,
+  "new_screening_tests_passed": 6,
+  "B4_research_tests_passed": 19,
+  "live_tests_passed": 287,
+  "summary_files_rebuilt": 23,
+  "summary_files_with_changed_values": 11,
+  "affected_grid_cells": 10,
+  "variant_intervals_reproduced": 420,
+  "variant_intervals_changed": 10,
+  "unaffected_variant_intervals": 410,
+  "additional_diagnostic_cell_intervals": 10,
+  "independent_count_and_mean_subtraction_checks": "pass for all affected cells",
+  "validation_and_diagnostic_holdout_unchanged": true,
+  "signals_regenerated": false,
+  "trades_resimulated": false,
+  "settlement_pnl_estimated": false,
+  "holdout_label": "April-June 2023 diagnostic; previously inspected, not fresh untouched",
+  "unresolved": [
+    "historical eligibility beyond known SRM cutoff",
+    "true historical tick sizes"
+  ],
+  "unchanged_study_artifacts": {
+    "level_sweeps_20261012": 475,
+    "level_sweeps_20261012_b4_v1": 617
+  },
+  "unchanged_live_files": 40,
+  "file_sets_unchanged": true,
+  "protocol_unchanged": true,
+  "analysis_code_lock_matches": true
+}

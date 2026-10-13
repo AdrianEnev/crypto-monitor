@@ -1,0 +1,27 @@
+{
+  "completed_utc": "2026-10-12T11:56:44.798566+00:00",
+  "python": "3.14.2",
+  "live_tests_before": 287,
+  "live_tests_after": 287,
+  "live_test_failures": 0,
+  "research_tests": 18,
+  "research_test_failures": 0,
+  "cli_command": "python -m crypto_monitor --help",
+  "cli_exit_code": 0,
+  "unchanged_live_files": 40,
+  "live_file_set_unchanged": true,
+  "frozen_protocol_unchanged": true,
+  "holdout_locked_code_unchanged": true,
+  "audited_trade_variant_rows": 3547157,
+  "data_manifest_status_counts": {
+    "verified": 3711,
+    "missing": 35
+  },
+  "full_primary_result_available": false,
+  "reason": "Historical exchange eligibility and true tick sizes are not reconstructed; results are explicitly labeled archive_eligibility_proxy.",
+  "known_ineligible_trade_variants_flagged": 10,
+  "raw_data_outside_repository": "/Users/adrian/Library/Caches/crypto-monitor-research/20261012",
+  "live_database_access_by_research": false,
+  "email_or_order_actions": false,
+  "aws_scope": "Only explicitly authorized unauthenticated Binance public archive listing"
+}

@@ -1,0 +1,13 @@
+symbol,month,interval,status,compared,mismatches,incomplete_derived
+BTCUSDT,2022-11,5m,pass,8640,0,0
+BTCUSDT,2022-11,1h,pass,720,0,0
+BTCUSDT,2022-11,1d,pass,30,0,0
+DOGEUSDT,2022-11,5m,pass,8640,0,0
+DOGEUSDT,2022-11,1h,pass,720,0,0
+DOGEUSDT,2022-11,1d,pass,30,0,0
+FTTUSDT,2022-11,5m,pass,8640,0,0
+FTTUSDT,2022-11,1h,pass,720,0,0
+FTTUSDT,2022-11,1d,pass,30,0,0
+BTCUSDT,2023-03,5m,pass,8928,0,0
+BTCUSDT,2023-03,1h,pass,744,0,0
+BTCUSDT,2023-03,1d,pass,31,0,0

@@ -1,0 +1,17 @@
+{"completed_utc": "2026-10-12T12:22:25.062316+00:00", "arithmetic_chronology_and_full_grid": [{"stage": "development", "trade_rows_checked": 2389852, "full_grid_cells": 4480, "status": "pass"}, {"stage": "holdout", "trade_rows_checked": 1157405, "full_grid_cells": 2240, "status": "pass"}], "unchanged_live_files": 40, "protocol_unchanged": true, "holdout_locked_code_unchanged": true}
+archives 20/20
+  symbol   month interval status  compared  mismatches  incomplete_derived
+ BTCUSDT 2022-11       5m   pass      8640           0                   0
+ BTCUSDT 2022-11       1h   pass       720           0                   0
+ BTCUSDT 2022-11       1d   pass        30           0                   0
+DOGEUSDT 2022-11       5m   pass      8640           0                   0
+DOGEUSDT 2022-11       1h   pass       720           0                   0
+DOGEUSDT 2022-11       1d   pass        30           0                   0
+ FTTUSDT 2022-11       5m   pass      8640           0                   0
+ FTTUSDT 2022-11       1h   pass       720           0                   0
+ FTTUSDT 2022-11       1d   pass        30           0                   0
+ BTCUSDT 2023-03       5m   pass      8928           0                   0
+ BTCUSDT 2023-03       1h   pass       744           0                   0
+ BTCUSDT 2023-03       1d   pass        31           0                   0
+{"pure_core_sha256": "83b674ed1acdadb412c5934cc8aba6acc536c5ae8c48ecd6a859e3cd8914f90f", "reference_timestamp_checks": 1461, "pilot_live_predicate_decimal_checks": 775, "mismatches": 0, "mode": "read-only isolated pure-core oracle; no runtime or adapter calls"}
+[{"symbol": "SRMUSDT", "settlement_utc": "2022-11-15T04:30:00Z", "publication_utc": "2022-11-14T07:00:00Z", "source": "https://www.binance.com/en/support/announcement/detail/9a6676662bd5417c92267953f3819dd0", "flagged_trade_variants": 10, "entries_after_settlement": 0, "holdings_crossing_settlement": 10, "observed_later_minutes_same_day": 1169, "zero_trade_later_minutes_same_day": 1169}, {"symbol": "RAYUSDT", "settlement_utc": "2022-11-15T04:00:00Z", "publication_utc": "2022-11-14T07:00:00Z", "source": "https://www.binance.com/en/support/announcement/detail/9a6676662bd5417c92267953f3819dd0", "flagged_trade_variants": 0, "entries_after_settlement": 0, "holdings_crossing_settlement": 0, "observed_later_minutes_same_day": null, "zero_trade_later_minutes_same_day": null}]

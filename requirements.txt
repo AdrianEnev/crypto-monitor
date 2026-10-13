@@ -1,0 +1,6 @@
+# Async WebSocket client; Python 3.10+ (tested here on Python 3.14).
+websockets>=16.0,<18
+# Used only when SES email is explicitly enabled; credentials use Boto3's provider chain.
+boto3>=1.40,<2
+# Interactive dashboard; redirected output keeps plain logging.
+rich>=14,<15

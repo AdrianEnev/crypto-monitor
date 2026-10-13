@@ -1,0 +1,8 @@
+{
+  "completed_utc": "2026-10-12T12:16:57.889780+00:00",
+  "verified_raw_archives": 3711,
+  "fresh_parsed_archives": 3711,
+  "source_manifest_sha256": "4de67abd5bc4c9516c90000b917726a2e9c389db5f65b2db96fa419826042e5e",
+  "cache": "/Users/adrian/Library/Caches/crypto-monitor-research/20261012-b4-v1",
+  "network_requests": 0
+}

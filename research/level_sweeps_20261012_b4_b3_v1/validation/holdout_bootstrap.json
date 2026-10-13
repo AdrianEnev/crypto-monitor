@@ -1,0 +1,9 @@
+{
+  "B4_intervals_reproduced": 140,
+  "retained_intervals_recomputed": 140,
+  "unchanged_input_intervals_verified_unchanged": 140,
+  "affected_intervals": 0,
+  "replicates": 500,
+  "seed": 20261012,
+  "rng": "Original per-group starting states preserved; screened group uses retained symbol/week dimensions"
+}

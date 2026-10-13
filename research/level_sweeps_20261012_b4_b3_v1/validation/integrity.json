@@ -1,0 +1,18 @@
+{
+  "unchanged_study_artifacts": {
+    "level_sweeps_20261012": 475,
+    "level_sweeps_20261012_b4_v1": 617
+  },
+  "unchanged_live_files": 40,
+  "file_sets_unchanged": true,
+  "protocol_unchanged": true,
+  "analysis_code_lock_matches": true,
+  "source_trade_rows": 3547257,
+  "retained_trade_rows": 3547247,
+  "quarantined_rows": 10,
+  "quarantined_events": 1,
+  "signals_regenerated": false,
+  "trades_resimulated": false,
+  "settlement_pnl_estimated": false,
+  "holdout_label": "diagnostic; previously inspected, not fresh untouched"
+}

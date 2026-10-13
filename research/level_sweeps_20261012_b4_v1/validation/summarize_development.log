@@ -1,0 +1,6 @@
+Loading development
+development trade rows 2389852 armed events 225321
+Summary development symbol
+Summary development year
+Summary development volume_group
+{"stage": "development", "armed_events": 225321, "confirmed_events": 122412, "simulated_trade_variants": 2389852, "distinct_event_ids_with_trades": 122412, "symbols_with_trades": 105, "full_grid_cells": 4480, "zero_trade_cells": 260, "ambiguous_trade_variants": 12034, "funding_omitted_trade_variants": 10319}

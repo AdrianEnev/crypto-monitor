@@ -1,0 +1,23 @@
+test_bad_checksum_never_admitted (test_research.DataTests.test_bad_checksum_never_admitted) ... ok
+test_duplicates_malformed_boundaries_and_gaps_not_filled (test_research.DataTests.test_duplicates_malformed_boundaries_and_gaps_not_filled) ... ok
+test_funding_jitter_uses_only_completed_price_candle (test_research.ExitsTests.test_funding_jitter_uses_only_completed_price_candle) ... ok
+test_funding_sign_and_timing (test_research.ExitsTests.test_funding_sign_and_timing) ... ok
+test_gap_open_stop_slips_and_target_capped (test_research.ExitsTests.test_gap_open_stop_slips_and_target_capped) ... ok
+test_max_holding_and_split_exit (test_research.ExitsTests.test_max_holding_and_split_exit) ... ok
+test_missing_minute_exits_before_gap (test_research.ExitsTests.test_missing_minute_exits_before_gap) ... ok
+test_same_bar_stop_first (test_research.ExitsTests.test_same_bar_stop_first) ... ok
+test_missing_daily_reference_unavailable (test_research.ReferencesTests.test_missing_daily_reference_unavailable) ... ok
+test_monday_and_quarter_boundaries (test_research.ReferencesTests.test_monday_and_quarter_boundaries) ... ok
+test_consecutive_confirmation_stop_and_entry (test_research.SignalsTests.test_consecutive_confirmation_stop_and_entry) ... ok
+test_controls_and_all_three_sweeps_exist (test_research.SignalsTests.test_controls_and_all_three_sweeps_exist) ... ok
+test_equality_does_not_reclaim_and_no_sliding_first_bar (test_research.SignalsTests.test_equality_does_not_reclaim_and_no_sliding_first_bar) ... ok
+test_long_is_mirror (test_research.SignalsTests.test_long_is_mirror) ... ok
+test_missing_minute_invalidates_confirmation (test_research.SignalsTests.test_missing_minute_invalidates_confirmation) ... ok
+test_pending_setup_expires_at_six_hours (test_research.SignalsTests.test_pending_setup_expires_at_six_hours) ... ok
+test_prior_features_and_ticks_do_not_use_future (test_research.SignalsTests.test_prior_features_and_ticks_do_not_use_future) ... ok
+test_signal_close_has_no_signal_candle_exposure (test_research.SignalsTests.test_signal_close_has_no_signal_candle_exposure) ... ok
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.186s
+
+OK

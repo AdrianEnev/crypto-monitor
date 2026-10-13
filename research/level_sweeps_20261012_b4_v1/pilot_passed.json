@@ -1,0 +1,43 @@
+{
+  "passed_utc": "2026-10-12T06:39:21.172819+00:00",
+  "research_tests": 17,
+  "native_comparisons": 37873,
+  "cases": [
+    {
+      "symbol": "BTCUSDT",
+      "month": "2022-11",
+      "armed_events": 1268,
+      "confirmed_events": 701,
+      "trade_variants": 13230,
+      "path_checks": "pass",
+      "purpose": "mechanics only; fixed pilot universe"
+    },
+    {
+      "symbol": "DOGEUSDT",
+      "month": "2022-11",
+      "armed_events": 2191,
+      "confirmed_events": 1301,
+      "trade_variants": 25980,
+      "path_checks": "pass",
+      "purpose": "mechanics only; fixed pilot universe"
+    },
+    {
+      "symbol": "FTTUSDT",
+      "month": "2022-11",
+      "armed_events": 925,
+      "confirmed_events": 522,
+      "trade_variants": 10320,
+      "path_checks": "pass",
+      "purpose": "mechanics only; fixed pilot universe"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "month": "2023-03",
+      "armed_events": 1237,
+      "confirmed_events": 640,
+      "trade_variants": 12240,
+      "path_checks": "pass",
+      "purpose": "mechanics only; fixed pilot universe"
+    }
+  ]
+}

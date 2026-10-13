@@ -1,0 +1,146 @@
+[
+  {
+    "id": "public_data_readme",
+    "url": "https://raw.githubusercontent.com/binance/binance-public-data/master/README.md",
+    "retrieved_utc": "2026-10-12T17:25:03.980567+00:00",
+    "http_status": 200,
+    "final_url": "https://raw.githubusercontent.com/binance/binance-public-data/master/README.md",
+    "bytes": 5282,
+    "sha256": "2e133d9945a9263a02781369078e72805eff074680f305cd5460016471c6caad",
+    "content_type": "text/plain; charset=utf-8",
+    "file": "sources/public_data_readme.txt",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "exchange_info_docs",
+    "url": "https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data",
+    "retrieved_utc": "2026-10-12T17:25:03.981081+00:00",
+    "http_status": 202,
+    "final_url": "https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/rest-api/market-data",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "contract_stream_docs",
+    "url": "https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/market",
+    "retrieved_utc": "2026-10-12T17:25:03.981178+00:00",
+    "http_status": 202,
+    "final_url": "https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/market",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "sol_apt_ticks",
+    "url": "https://www.binance.com/en/support/announcement/detail/5c37be07498c48699f13faf6378b7250",
+    "retrieved_utc": "2026-10-12T17:25:03.981261+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/support/announcement/detail/5c37be07498c48699f13faf6378b7250",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "nov10_ticks",
+    "url": "https://www.binance.com/en/support/announcement/detail/d1d8ddb786ba4f0793c65795d7228dcc",
+    "retrieved_utc": "2026-10-12T17:25:04.287689+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/support/announcement/detail/d1d8ddb786ba4f0793c65795d7228dcc",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "srm_ray_settlement",
+    "url": "https://www.binance.com/en/support/announcement/detail/9a6676662bd5417c92267953f3819dd0",
+    "retrieved_utc": "2026-10-12T17:25:04.329205+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/support/announcement/detail/9a6676662bd5417c92267953f3819dd0",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "mina_settlement",
+    "url": "https://www.binance.com/en/support/announcement/detail/303ab4c96a174d6b80ea7c1884190f3b",
+    "retrieved_utc": "2026-10-12T17:25:04.498658+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/support/announcement/detail/303ab4c96a174d6b80ea7c1884190f3b",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "mina_resume",
+    "url": "https://www.binance.com/en/support/announcement/detail/611746e5caf848889b132d9fdde6c47f",
+    "retrieved_utc": "2026-10-12T17:25:04.750201+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/support/announcement/detail/611746e5caf848889b132d9fdde6c47f",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "bluebird_launch",
+    "url": "https://www.binance.com/en/support/announcement/detail/6971c0a0c4fe43ef9969c1d6252dea74",
+    "retrieved_utc": "2026-10-12T17:25:04.930266+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/support/announcement/detail/6971c0a0c4fe43ef9969c1d6252dea74",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "nmr_launch",
+    "url": "https://www.binance.com/en-PH/support/announcement/detail/3e95295a2c554f87b27e7ecf544e1e61",
+    "retrieved_utc": "2026-10-12T17:25:04.932611+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en-PH/support/announcement/detail/3e95295a2c554f87b27e7ecf544e1e61",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "feb_tick_notice",
+    "url": "https://www.binance.com/en/square/post/195736",
+    "retrieved_utc": "2026-10-12T17:25:05.062006+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/square/post/195736",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "bnx_relaunch",
+    "url": "https://www.binance.com/en/support/announcement/detail/940d0e48493e4627889c3f46371df70b",
+    "retrieved_utc": "2026-10-12T17:25:05.329446+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/support/announcement/detail/940d0e48493e4627889c3f46371df70b",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  },
+  {
+    "id": "floki_launch",
+    "url": "https://www.binance.com/en/square/post/495661",
+    "retrieved_utc": "2026-10-12T17:25:05.500315+00:00",
+    "http_status": 202,
+    "final_url": "https://www.binance.com/en/square/post/495661",
+    "bytes": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "content_type": "text/html; charset=UTF-8",
+    "note": "HTTP capture only; status/size/hash do not certify article content or historical completeness. Report observations were checked using rendered official pages/search indexing."
+  }
+]

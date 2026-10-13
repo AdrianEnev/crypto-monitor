@@ -1,0 +1,11 @@
+split   sweep_type  timeframe stop_rule target_rule   entry_rule       level side  trades_B4  trades_screened  ci_95_low_B4  ci_95_high_B4  ci_95_low_screened  ci_95_high_screened
+train reclaim_only          1     1.25x    opposing    next_open monday_high long       4812             4811     -2.270151      -0.645514           -2.250112            -0.689621
+train reclaim_only          1     1.25x    opposing signal_close monday_high long       4813             4812     -2.216999      -0.646575           -2.111888            -0.578140
+train reclaim_only          1      1.5x    opposing    next_open monday_high long       4812             4811     -1.930753      -0.548798           -1.991230            -0.514002
+train reclaim_only          1      1.5x    opposing signal_close monday_high long       4813             4812     -1.980712      -0.455024           -1.868222            -0.470888
+train reclaim_only          1        2x    opposing    next_open monday_high long       4812             4811     -1.618045      -0.241538           -1.627684            -0.254610
+train reclaim_only          1        2x    opposing signal_close monday_high long       4813             4812     -1.545554      -0.115743           -1.607963            -0.206825
+train reclaim_only          1  baseline    opposing    next_open monday_high long       4812             4811     -2.718438      -0.897100           -2.947538            -0.933282
+train reclaim_only          1  baseline    opposing signal_close monday_high long       4813             4812     -2.798685      -0.814007           -2.672452            -0.866382
+train reclaim_only          1 excursion    opposing    next_open monday_high long       4813             4812     -2.044092      -0.371701           -2.120855            -0.388887
+train reclaim_only          1 excursion    opposing signal_close monday_high long       4813             4812     -2.014140      -0.493774           -2.101187            -0.510134

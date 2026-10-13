@@ -1,0 +1,67 @@
+Archive hashes passed
+Raw daily ZIP rankings passed
+{"completed_utc": "2026-10-12T12:08:38.408244+00:00", "arithmetic_chronology_and_full_grid": [{"stage": "development", "trade_rows_checked": 2389812, "full_grid_cells": 4480, "status": "pass"}, {"stage": "holdout", "trade_rows_checked": 1157345, "full_grid_cells": 2240, "status": "pass"}], "unchanged_live_files": 40, "protocol_unchanged": true, "holdout_locked_code_unchanged": true}
+{"pure_core_sha256": "83b674ed1acdadb412c5934cc8aba6acc536c5ae8c48ecd6a859e3cd8914f90f", "reference_timestamp_checks": 1461, "pilot_live_predicate_decimal_checks": 775, "mismatches": 0, "mode": "read-only isolated pure-core oracle; no runtime or adapter calls"}
+Summary and bootstrap reproduction passed development
+Summary and bootstrap reproduction passed holdout
+{
+  "verified_zip_and_checksum_hashes": 3711,
+  "integrity_before": {
+    "original_artifacts_unchanged": 461,
+    "live_files_unchanged": 40,
+    "live_file_set_unchanged": true
+  },
+  "ranking": {
+    "candidate_symbols": 196,
+    "days": 273,
+    "symbol_days": 5460,
+    "distinct_symbols": 150,
+    "mismatches": 0
+  },
+  "native_aggregation_comparisons": 37873,
+  "srm": {
+    "rows": 40,
+    "crossing_rows": 10,
+    "events_crossing": 1,
+    "entries_at_or_after_cutoff": 0,
+    "exits_exactly_at_cutoff": 0,
+    "all_crossings_flagged": true,
+    "flag_columns_embedded_in_trade_rows": false
+  },
+  "report_table_rows_reproduced": 14,
+  "stages": {
+    "development": {
+      "rows": 2389812,
+      "distinct_event_ids_with_trades": 122410,
+      "funding_omitted": 10319,
+      "full_grid_cells": 4480,
+      "active_grid_cells_reproduced": 4220,
+      "variant_ci_rows_reproduced": 280
+    },
+    "holdout": {
+      "rows": 1157345,
+      "distinct_event_ids_with_trades": 59306,
+      "funding_omitted": 9847,
+      "full_grid_cells": 2240,
+      "active_grid_cells_reproduced": 2240,
+      "variant_ci_rows_reproduced": 140
+    }
+  },
+  "training_only_thresholds": {
+    "events": 56320,
+    "matches_frozen_cutpoints": true
+  },
+  "tick_synthetic_probe": "Changing tick from 0.01 to 0.02 removes the same otherwise-qualified sweep.",
+  "timeout_probe": {
+    "first_sweep": "2022-11-08T00:01:00+00:00",
+    "expiry": "2022-11-08T06:02:00+00:00",
+    "suppressed_qualifying_sweep_open": "2022-11-08T06:02:00+00:00",
+    "observed": "2022-11-08T06:03:00+00:00",
+    "cause": "busy=until+1 instead of release at until on six-hour timeout"
+  },
+  "integrity_after": {
+    "original_artifacts_unchanged": 461,
+    "live_files_unchanged": 40,
+    "live_file_set_unchanged": true
+  }
+}
