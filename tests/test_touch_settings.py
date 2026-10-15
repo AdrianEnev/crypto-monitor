@@ -55,7 +55,7 @@ class TouchSettingsTests(unittest.TestCase):
                 load_touch_settings(self.path)
 
     def test_cli_layout_and_required_path_are_forwarded(self):
-        settings = parse_settings(["--env-file", str(self.path), "--layout", "cards", "--top-n", "100"])
+        settings = parse_settings(["--no-email", "--env-file", str(self.path), "--layout", "cards", "--top-n", "100"])
         self.assertEqual(settings.env_file, self.path.resolve())
         self.assertEqual(settings.layout, "cards")
         self.assertEqual(settings.top_n, 100)
@@ -64,7 +64,7 @@ class TouchSettingsTests(unittest.TestCase):
         runner = AsyncMock()
         with patch("crypto_monitor.runtime.touch_service.run_touch_service", runner), \
              patch("crypto_monitor.runtime.service.configure_logging"):
-            self.assertEqual(main(["--env-file", str(self.path), "--no-tui"]), 0)
+            self.assertEqual(main(["--no-email", "--env-file", str(self.path), "--no-tui"]), 0)
         runner.assert_awaited_once()
         self.assertEqual(runner.call_args.kwargs["policy"].delays["previous_week"], Decimal("0.1"))
 
@@ -72,6 +72,6 @@ class TouchSettingsTests(unittest.TestCase):
         self.path.write_text(CONFIG.replace("PMLH_delay=3", "PMLH_delay="))
         runner = AsyncMock()
         with patch("crypto_monitor.runtime.touch_service.run_touch_service", runner), contextlib.redirect_stderr(io.StringIO()) as errors:
-            self.assertEqual(main(["--env-file", str(self.path)]), 2)
+            self.assertEqual(main(["--no-email", "--env-file", str(self.path)]), 2)
         runner.assert_not_called()
         self.assertIn("PMLH_delay", errors.getvalue())

@@ -1,6 +1,7 @@
 # How the updated monitor works
 
-This guide describes the implemented service launched with `python -m crypto_monitor`.
+This guide describes the implemented service launched with `crypto-monitor`
+(also available through `python -m crypto_monitor`).
 
 ## 1. Before your first launch
 
@@ -22,13 +23,22 @@ The file also contains editable notification timings in seconds:
 
 Monday watches have no delay variable. Each Monday low and high can activate only once for its reference.
 
-Run from the project directory, using your existing installed environment:
+Run from any directory using the installed command:
 
 ```sh
-.venv/bin/python -m crypto_monitor --top-n 100 --layout table
+crypto-monitor
 ```
 
-Use `--env-file /path/to/settings.env` for a different required file. Use `--layout cards` to start with the other design, or `--no-tui` for plain logs. Selection still uses eligible Binance USDT perpetual markets, with optional `--include` and `--exclude` rules.
+The defaults are top 100 markets, table layout, email on, and the existing
+project database and `.env`. Use `--no-email` to start with mail off, `-n 50`
+for a different market count, or `-l cards` for the other layout. The long
+`--top-n` and `--layout` options and all advanced options remain available.
+Default database and environment paths stay anchored to the project directory;
+explicit relative paths resolve from the invocation directory.
+
+Use `--env-file /path/to/settings.env` for a different required file, or
+`--no-tui` for plain logs. Selection still uses eligible Binance USDT perpetual
+markets, with optional `--include` and `--exclude` rules.
 
 ## 2. Loading and quiet history
 
@@ -106,7 +116,16 @@ The terminal keyboard reader leaves screen output in its normal blocking mode. S
 
 ## 7. Email
 
-Email remains explicitly optional through the existing `--email-enabled`, sender, recipient, and region arguments. AWS authentication continues through its standard provider chain.
+Press `e` in the running dashboard to toggle email alerts. The top of both
+layouts shows **Email ON (e)** or **Email OFF (e)**. The toggle affects only the
+current run; email starts on unless `--no-email` is supplied. Disabling
+email stops new notifications, lets any send already underway finish, and
+discards pending retries. Enabling it again sends only new eligible live touches.
+Invalid settings when pressing `e` keep email off and show an attention message.
+Invalid enabled-email settings at startup stop the run; `--no-email` allows
+starting without email.
+
+Email starts enabled; use `--no-email` to disable it at startup. The existing `--email-enabled` option explicitly selects the default. Startup loads shared credentials from `Trading_NEW/.env` alongside the required project `.env`; process variables take precedence, followed by project values, then shared defaults. Required monitor timings still come directly from the project file. Shared `SES_SMTP_*` credentials select encrypted SES SMTP delivery, with `EMAIL_FROM` and `ALERT_EMAIL_TO` supplying the addresses. Sender and recipient arguments override those defaults. SMTP delivery uses the region in `SES_SMTP_HOST`. Without that host, the SES API continues to use Boto3's standard credential chain, with `--email-region` overriding `AWS_REGION` or `AWS_DEFAULT_REGION`. See the README for variable names and recipient fallbacks.
 
 Each eligible fresh live activation gets a separate message, sent promptly. There is no five-minute combined digest in the executable touch service. Messages show the level, touched time in Sofia and UTC, and a stable activation ID.
 

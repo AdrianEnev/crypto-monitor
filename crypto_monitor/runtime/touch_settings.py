@@ -6,6 +6,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
 
+from crypto_monitor.runtime.environment import read_env_values
+
 
 DELAY_KEYS = {"previous_week": "PWLH_delay", "previous_month": "PMLH_delay",
               "previous_quarter": "PQLH_delay"}
@@ -21,31 +23,7 @@ class TouchSettings:
 
 def load_touch_settings(path):
     path = Path(path).expanduser().resolve()
-    if not path.is_file():
-        raise ValueError(f"required environment file not found: {path}")
-    try:
-        lines = path.read_text(encoding="utf-8").splitlines()
-    except (OSError, UnicodeError) as exc:
-        raise ValueError(f"cannot read required environment file: {path}") from exc
-    values = {}
-    for number, line in enumerate(lines, 1):
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[7:].strip()
-        if "=" not in line:
-            raise ValueError(f"{path.name}:{number}: expected NAME=value")
-        key, value = (part.strip() for part in line.split("=", 1))
-        if key in values:
-            raise ValueError(f"{path.name}:{number}: duplicate setting {key}")
-        if value[:1] in ("'", '"'):
-            if len(value) < 2 or value[-1] != value[0]:
-                raise ValueError(f"{path.name}:{number}: unclosed quote")
-            value = value[1:-1]
-        else:
-            value = value.split(" #", 1)[0].strip()
-        values[key] = value
+    values = read_env_values(path, required=True)
 
     def positive(key):
         try:

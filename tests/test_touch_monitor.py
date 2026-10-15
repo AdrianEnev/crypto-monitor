@@ -131,6 +131,21 @@ class TouchMonitorTests(unittest.TestCase):
         self.assertEqual(self.store.record_price("TESTUSDT", D("100"), START, DELAYS, notify=True), [])
         self.assertEqual(self.store.load_touch_outbox(START), ())
 
+    def test_disabling_email_mutes_pending_but_preserves_sent_notifications(self):
+        ready(self.store, only={"previous_month", "previous_quarter"})
+        self.store.record_price("TESTUSDT", D("100"), START, DELAYS, notify=True)
+        entries = self.store.load_touch_outbox(START)
+        self.assertEqual(len(entries), 2)
+        self.store.mark_touch_outbox_sent(entries[0].activation.activation_id,
+                                         sent_at=START, message_id="accepted")
+        self.store.mute_pending_touch_outbox(START + timedelta(seconds=1))
+        self.assertEqual(self.store.load_touch_outbox(START + timedelta(seconds=2)), ())
+        rows = self.store._connection.execute(
+            "SELECT sent_at,message_id,muted_reason FROM touch_email_outbox ORDER BY activation_id"
+        ).fetchall()
+        self.assertEqual(sum(row[1] == "accepted" and row[2] is None for row in rows), 1)
+        self.assertEqual(sum(row[0] is None and row[2] == "email disabled" for row in rows), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

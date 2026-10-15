@@ -1,6 +1,7 @@
 """Offline outbox and SES tests: real temporary SQLite, injected mock clients."""
 
 import asyncio
+import os
 import sqlite3
 import tempfile
 import threading
@@ -111,7 +112,7 @@ class DigestTests(unittest.TestCase):
     def test_default_client_uses_provider_chain_finite_timeouts_and_no_sdk_retries(self):
         # Mock entire lazy imports: no installed SDK or credential lookup is needed.
         boto, config = MagicMock(), MagicMock()
-        with patch.dict("sys.modules", {"boto3": boto, "botocore": MagicMock(),
+        with patch.dict(os.environ, {}, clear=True), patch.dict("sys.modules", {"boto3": boto, "botocore": MagicMock(),
                                        "botocore.config": SimpleNamespace(Config=config)}):
             self.assertIs(create_ses_client("eu-west-1"), boto.client.return_value)
         boto.client.assert_called_once_with("sesv2", region_name="eu-west-1", config=config.return_value)

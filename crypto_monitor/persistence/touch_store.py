@@ -342,11 +342,15 @@ class TouchStore(SQLiteStore):
         # Run this before accepting any new events. Every existing pending row
         # belongs to an earlier run, including rows dated ahead after a clock
         # correction, and must not become a startup email.
+        self.mute_pending_touch_outbox(at, reason="previous run")
+
+    def mute_pending_touch_outbox(self, at, *, reason="email disabled"):
+        """Discard unsent notifications after the sender has finished its work."""
         with self._connection:
             self._connection.execute("""
-                UPDATE touch_email_outbox SET muted_at=?,muted_reason='previous run'
+                UPDATE touch_email_outbox SET muted_at=?,muted_reason=?
                 WHERE sent_at IS NULL AND muted_at IS NULL
-            """, (_utc(at),))
+            """, (_utc(at), reason))
 
     def mute_touch_outbox_before(self, run_started_at):
         with self._connection:

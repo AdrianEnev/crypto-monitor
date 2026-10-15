@@ -41,7 +41,7 @@ def render(renderable, width=120):
 class RenderTests(unittest.TestCase):
     def test_live_header_uses_sofia_and_excludes_operational_clutter(self):
         value = render(render_touch_dashboard(snapshot(), width=120))
-        for expected in ("LIVE", "2 coins", "Email off", "16:30:00", "Europe/Sofia",
+        for expected in ("LIVE", "2 coins", "Email OFF", "16:30:00", "Europe/Sofia",
                          "FILUSDT", "ADAUSDT", "N/A", "E earlier"):
             self.assertIn(expected, value)
         for unwanted in ("UTC", "queue", "pending", "13:30:00"):
@@ -116,6 +116,18 @@ class RenderTests(unittest.TestCase):
                     self.assertTrue(all(len(line) <= width for line in value.splitlines()))
                     self.assertIn("FILUSDT", value)
 
+    def test_email_status_and_shortcut_are_visible_in_each_layout(self):
+        for enabled in (False, True):
+            for layout in ("table", "cards"):
+                for width in (40, 120):
+                    with self.subTest(enabled=enabled, layout=layout, width=width):
+                        value = render(render_touch_dashboard(
+                            dict(snapshot(), email_enabled=enabled), layout=layout, width=width), width=width)
+                        self.assertIn(f"Email {'ON' if enabled else 'OFF'}", value)
+                        self.assertIn("(e)", value)
+                        self.assertIn("e email", value)
+                        self.assertLess(value.index("Email "), value.index("Fresh:"))
+
     def test_local_time_uses_sofia_daylight_saving_rules(self):
         self.assertEqual(local_time(NOW), "16:30:00")
         winter = NOW.replace(month=12)
@@ -123,6 +135,21 @@ class RenderTests(unittest.TestCase):
 
 
 class KeyboardTests(unittest.TestCase):
+    def test_email_key_invokes_callback_without_changing_snapshot(self):
+        callback = MagicMock(return_value="callback result")
+        dashboard = TouchDashboard(None, on_toggle_email=callback)
+        stop, current = asyncio.Event(), snapshot()
+        self.assertEqual(dashboard.handle_key("e", stop, current), "callback result")
+        callback.assert_called_once_with()
+        self.assertFalse(current["email_enabled"])
+        self.assertFalse(stop.is_set())
+
+    def test_email_key_without_callback_is_safe(self):
+        dashboard = TouchDashboard(None)
+        stop = asyncio.Event()
+        self.assertIsNone(dashboard.handle_key("e", stop, snapshot()))
+        self.assertFalse(stop.is_set())
+
     def test_layout_filter_page_and_quit_switches(self):
         dashboard = TouchDashboard(None, console=Console(width=120, height=40), page_size=1)
         stop = asyncio.Event()
@@ -170,6 +197,136 @@ class KeyboardTests(unittest.TestCase):
 
 
 class LifecycleTests(unittest.IsolatedAsyncioTestCase):
+    def make_dashboard(self, collector, on_toggle_email):
+        live = MagicMock()
+        live.__enter__.return_value = live
+        factory = MagicMock(return_value=live)
+        dashboard = TouchDashboard(collector, on_toggle_email=on_toggle_email,
+                                   console=Console(width=120), live_factory=factory,
+                                   interval=0.001)
+        return dashboard, live, factory
+
+    async def test_email_toggle_keeps_refreshing_accepts_keys_and_uses_collected_state(self):
+        stop = asyncio.Event()
+        started, release = asyncio.Event(), asyncio.Event()
+        enabled, toggle_calls, waiting_collects = False, 0, 0
+
+        async def collector():
+            nonlocal waiting_collects
+            if started.is_set() and not release.is_set():
+                waiting_collects += 1
+                if waiting_collects == 2:
+                    release.set()
+            if enabled:
+                stop.set()
+            return dict(snapshot(), email_enabled=enabled)
+
+        async def toggle_email():
+            nonlocal enabled, toggle_calls
+            toggle_calls += 1
+            started.set()
+            await release.wait()
+            enabled = True
+
+        keys = ["EE", "ec"]
+
+        def read():
+            return keys.pop(0) if keys else ""
+
+        dashboard, live, factory = self.make_dashboard(collector, toggle_email)
+        with patch("crypto_monitor.ui.touch_dashboard.keyboard_input") as keyboard:
+            keyboard.return_value.__enter__.return_value = read
+            await asyncio.wait_for(dashboard.run(stop), timeout=1)
+
+        self.assertEqual(waiting_collects, 2)
+        self.assertEqual(toggle_calls, 1)
+        self.assertEqual(dashboard.layout, "cards")
+        self.assertIn("Email OFF", render(factory.call_args.args[0]))
+        updates = [render(call.args[0]) for call in live.update.call_args_list]
+        self.assertTrue(all("Email OFF" in value for value in updates[:3]))
+        self.assertIn("Email ON", updates[-1])
+
+    async def test_quit_is_processed_while_toggle_finishes_and_ignores_later_keys(self):
+        stop = asyncio.Event()
+        started, release, finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        keys = ["e"]
+
+        async def collector():
+            return snapshot()
+
+        async def toggle_email():
+            started.set()
+            await release.wait()
+            finished.set()
+
+        dashboard, live, _ = self.make_dashboard(collector, toggle_email)
+        with patch("crypto_monitor.ui.touch_dashboard.keyboard_input") as keyboard:
+            keyboard.return_value.__enter__.return_value = lambda: keys.pop(0) if keys else ""
+            task = asyncio.create_task(dashboard.run(stop))
+            await asyncio.wait_for(started.wait(), timeout=1)
+            keys.append("qc")
+            await asyncio.wait_for(stop.wait(), timeout=1)
+
+            self.assertFalse(task.done())
+            self.assertFalse(finished.is_set())
+            self.assertEqual(dashboard.layout, "table")
+            live.__exit__.assert_called_once()
+            self.assertIn("STOPPED", render(live.update.call_args.args[0]))
+
+            release.set()
+            await asyncio.wait_for(task, timeout=1)
+        self.assertTrue(finished.is_set())
+
+    async def test_cancellation_waits_for_toggle_without_cancelling_its_bookkeeping(self):
+        stop = asyncio.Event()
+        started, release, finished = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        async def collector():
+            return snapshot()
+
+        async def toggle_email():
+            started.set()
+            await release.wait()
+            finished.set()
+
+        dashboard, live, _ = self.make_dashboard(collector, toggle_email)
+        with patch("crypto_monitor.ui.touch_dashboard.keyboard_input") as keyboard:
+            keyboard.return_value.__enter__.return_value = lambda: "e"
+            task = asyncio.create_task(dashboard.run(stop))
+            await asyncio.wait_for(started.wait(), timeout=1)
+            task.cancel()
+            await asyncio.sleep(0)
+            task.cancel()
+            await asyncio.sleep(0)
+            self.assertFalse(task.done())
+            live.__exit__.assert_called_once()
+
+            release.set()
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(task, timeout=1)
+        self.assertTrue(finished.is_set())
+
+    async def test_toggle_errors_reach_caller_even_when_callback_stops_dashboard(self):
+        for stop_on_failure in (False, True):
+            with self.subTest(stop_on_failure=stop_on_failure):
+                stop = asyncio.Event()
+
+                async def collector():
+                    return snapshot()
+
+                async def toggle_email():
+                    await asyncio.sleep(0)
+                    if stop_on_failure:
+                        stop.set()
+                    raise RuntimeError("email toggle failed")
+
+                dashboard, live, _ = self.make_dashboard(collector, toggle_email)
+                with patch("crypto_monitor.ui.touch_dashboard.keyboard_input") as keyboard:
+                    keyboard.return_value.__enter__.return_value = lambda: "e"
+                    with self.assertRaisesRegex(RuntimeError, "email toggle failed"):
+                        await asyncio.wait_for(dashboard.run(stop), timeout=1)
+                live.__exit__.assert_called_once()
+
     async def test_stop_closes_live_and_renders_final_stopped_state(self):
         stop = asyncio.Event()
         calls = 0

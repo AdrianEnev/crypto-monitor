@@ -6,6 +6,7 @@ a lost response or failed SQLite acknowledgement can cause duplicate email.
 
 import asyncio
 import logging
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -52,7 +53,10 @@ class EmailSettings:
 
 
 def create_ses_client(region):
-    """Lazy Boto3 import and standard credential chain; no credentials supplied."""
+    """Use shared SES SMTP credentials when configured, otherwise Boto3's chain."""
+    if os.environ.get("SES_SMTP_HOST"):
+        from crypto_monitor.adapters.ses_smtp import SESEmailSMTPClient
+        return SESEmailSMTPClient()
     import boto3
     from botocore.config import Config
     return boto3.client("sesv2", region_name=region, config=Config(

@@ -1,4 +1,4 @@
-"""Run the monitor with ``python -m crypto_monitor``."""
+"""Compatibility entry point; ``crypto-monitor`` calls the same main function."""
 
 from crypto_monitor.runtime.service import main
 

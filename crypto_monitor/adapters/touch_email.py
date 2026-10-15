@@ -81,6 +81,10 @@ class TouchEmailDispatcher:
         """Called on the event loop after a fresh notification is committed."""
         self.wake.set()
 
+    def request_stop(self):
+        """Prevent another send while allowing an in-flight send to be saved."""
+        self._shutdown_requested.set()
+
     def send_pending(self, *, max_count=None):
         """Send each due live activation separately; return accepted count."""
         if not self.settings.enabled:

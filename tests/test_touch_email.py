@@ -214,6 +214,19 @@ class TouchEmailTests(unittest.TestCase):
                     kwargs = {"retry_seconds": 3, "max_age_seconds": 30, name: value}
                     TouchEmailDispatcher("unused", SETTINGS, **kwargs)
 
+    def test_stop_request_finishes_current_send_and_skips_remaining_batch(self):
+        self.store.add(activation("second"))
+
+        def accepted(**kwargs):
+            self.dispatcher.request_stop()
+            return {"MessageId": "accepted-before-disable"}
+
+        self.client.send_email.side_effect = accepted
+        self.assertEqual(self.dispatcher.send_pending(), 1)
+        self.client.send_email.assert_called_once()
+        self.assertEqual(self.store.rows["activation-1"].message_id, "accepted-before-disable")
+        self.assertIsNone(self.store.rows["second"].sent_at)
+
 
 class AsyncTouchEmailTests(unittest.IsolatedAsyncioTestCase):
     async def test_notify_sends_without_a_digest_boundary(self):

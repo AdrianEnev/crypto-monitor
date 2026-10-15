@@ -27,6 +27,7 @@ from crypto_monitor.persistence.sqlite_store import SQLiteStore
 from crypto_monitor.runtime.refresh_coordinator import RefreshCoordinator
 from crypto_monitor.adapters.ses_email import EmailDispatcher, EmailSettings
 from crypto_monitor.runtime.websocket_supervisor import WebSocketSupervisor
+from crypto_monitor.runtime.environment import DEFAULT_DATABASE, DEFAULT_ENV_FILE, email_region, load_environment
 
 
 LOG = logging.getLogger(__name__)
@@ -34,14 +35,14 @@ LOG = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Settings:
-    database: Path = Path("monitor.sqlite3")
-    top_n: int = 20
+    database: Path = DEFAULT_DATABASE
+    top_n: int = 100
     include_symbols: tuple[str, ...] = ()
     exclude_symbols: tuple[str, ...] = ()
     email: EmailSettings = EmailSettings()
     no_tui: bool = False
     stale_after_minutes: int = 3
-    env_file: Path = Path(".env")
+    env_file: Path = DEFAULT_ENV_FILE
     layout: str = "table"
 
     def __post_init__(self):
@@ -54,28 +55,45 @@ class Settings:
 
 
 def parse_settings(argv=None) -> Settings:
-    parser = argparse.ArgumentParser(description="Binance USD-M price-touch monitor")
-    parser.add_argument("--database", default="monitor.sqlite3", help="SQLite file (default: ./monitor.sqlite3)")
-    parser.add_argument("--top-n", type=int, default=20, help="top eligible markets by quote volume (default: 20)")
+    parser = argparse.ArgumentParser(prog="crypto-monitor", description="Binance USD-M price-touch monitor",
+        epilog="Default: top 100 markets, table dashboard, email on. Press e to toggle email while running.")
+    parser.add_argument("--database", default=str(DEFAULT_DATABASE),
+                        help="SQLite file (default: crypto-monitor/monitor.sqlite3)")
+    parser.add_argument("-n", "--top-n", type=int, default=100,
+                        help="top eligible markets by quote volume (default: 100)")
     parser.add_argument("--include", default="", help="comma-separated additional eligible symbols")
     parser.add_argument("--exclude", default="", help="comma-separated excluded symbols (always win)")
-    parser.add_argument("--email-enabled", action="store_true", help="explicitly enable separate fresh SES alerts")
-    parser.add_argument("--email-sender", help="verified SES sender address")
-    parser.add_argument("--email-recipient", help="single alert recipient address")
-    parser.add_argument("--email-region", help="AWS region containing the verified SES identity")
+    email = parser.add_mutually_exclusive_group()
+    email.add_argument("--email-enabled", action="store_true", help="start with email alerts on (default)")
+    email.add_argument("--no-email", "--email-disabled", action="store_false", dest="email_enabled",
+                       help="start with email alerts off; press e to enable while running")
+    parser.set_defaults(email_enabled=True)
+    parser.add_argument("--email-sender", help="verified SES sender (default: EMAIL_FROM)")
+    parser.add_argument("--email-recipient", help="single recipient (default: ALERT_EMAIL_TO)")
+    parser.add_argument("--email-region", help="SES API region (default: AWS region; SMTP uses SES_SMTP_HOST)")
     parser.add_argument("--no-tui", action="store_true", help="plain logs even on an interactive terminal")
-    parser.add_argument("--env-file", default=".env", help="required sweep settings file (default: ./.env)")
-    parser.add_argument("--layout", choices=("table", "cards"), default="table", help="terminal layout")
+    parser.add_argument("--env-file", default=str(DEFAULT_ENV_FILE),
+                        help="required sweep settings file (default: crypto-monitor/.env)")
+    parser.add_argument("-l", "--layout", choices=("table", "cards"), default="table",
+                        help="terminal layout (default: table)")
     parser.add_argument("--stale-after-minutes", type=int, default=3, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     def symbols(value):
         return tuple(sorted({item.strip().upper() for item in value.split(",") if item.strip()}))
     try:
+        load_environment(args.env_file)
+        sender = args.email_sender if args.email_sender is not None else os.environ.get("EMAIL_FROM")
+        recipient = args.email_recipient if args.email_recipient is not None else (
+            os.environ.get("ALERT_EMAIL_TO") or os.environ.get("EMAIL_TO") or os.environ.get("EMAIL_RECIPIENT"))
+        region = args.email_region if args.email_region is not None else email_region()
+        if args.email_enabled and os.environ.get("SES_SMTP_HOST"):
+            from crypto_monitor.adapters.ses_smtp import SESEmailSMTPSettings
+            SESEmailSMTPSettings.from_env()
         if not args.database.strip():
             raise ValueError("database path cannot be empty")
         settings = Settings(Path(args.database).expanduser(), args.top_n,
                             symbols(args.include), symbols(args.exclude),
-                            EmailSettings(args.email_enabled, args.email_sender, args.email_recipient, args.email_region),
+                            EmailSettings(args.email_enabled, sender, recipient, region),
                             args.no_tui, args.stale_after_minutes)
         return Settings(settings.database.resolve(), settings.top_n,
                         settings.include_symbols, settings.exclude_symbols, settings.email, settings.no_tui,

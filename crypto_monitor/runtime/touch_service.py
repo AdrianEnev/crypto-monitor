@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import os
 import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -249,6 +250,13 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
     loading_task = None
     live_started = None
     email = None
+    email_enabled = settings.email.enabled
+    email_enabled_since = None
+    email_error = None
+    email_task = None
+    email_stop = None
+    email_failure = loop.create_future()
+    email_toggle_lock = asyncio.Lock()
     supervisor = None
     last_received = None
     shutting_down = False
@@ -284,19 +292,102 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
                     "error": f"Status unavailable: {type(exc).__name__}"}
         error = data.get("error") or runtime.error or (supervisor.error if supervisor else None)
         data["fresh"] = live_fresh_events(data.get("fresh", ()), live_started)
-        if email is not None and email.status.last_error:
+        error = error or email_error
+        if email_enabled and email is not None and email.status.last_error:
             error = error or "Email delivery needs attention"
         if last_received is not None and (stamp - last_received).total_seconds() > float(policy.max_age_seconds):
             error = error or "Waiting for fresh prices"
         return dict(data, now=stamp, markets=runtime.markets,
-                    connection=supervisor.state if supervisor else "loading", email_enabled=settings.email.enabled,
+                    connection=supervisor.state if supervisor else "loading", email_enabled=email_enabled,
                     error=error, highlight_seconds=float(policy.highlight_seconds))
+
+    def report_email_failure(failure):
+        if not stop.is_set() and not email_failure.done():
+            email_failure.set_result(failure)
+
+    def start_email(configuration):
+        nonlocal email, email_task, email_stop
+        email = email_factory(settings.database, configuration,
+            retry_seconds=policy.email_retry_seconds, max_age_seconds=policy.max_age_seconds, now=now)
+        email_stop = asyncio.Event()
+        sender_stop = email_stop
+        email_task = asyncio.create_task(email.run(sender_stop))
+
+        def finished(task):
+            if task.cancelled():
+                failure = RuntimeError("email sender cancelled unexpectedly")
+            else:
+                failure = task.exception()
+                if failure is None and not sender_stop.is_set():
+                    failure = RuntimeError("email sender stopped unexpectedly")
+            if failure is not None:
+                report_email_failure(failure)
+
+        email_task.add_done_callback(finished)
+
+    def request_email_stop():
+        if email_stop is not None:
+            email_stop.set()
+        if email is not None:
+            request_stop = getattr(email, "request_stop", None)
+            if request_stop is not None:
+                request_stop()
+
+    async def watch_email():
+        # Normal ON/OFF transitions finish sender tasks without ending monitoring.
+        # Provider bookkeeping failures still stop the service visibly.
+        raise await email_failure
+
+    async def change_email():
+        nonlocal email_enabled, email_enabled_since, email_error, email, email_task, email_stop
+        async with email_toggle_lock:
+            if stop.is_set() or shutting_down:
+                return email_enabled
+            if email_enabled:
+                async with lock:
+                    email_enabled = False
+                    email_enabled_since = None
+                    email_error = None
+                    request_email_stop()
+                # Keep prices flowing while an in-flight send saves its result.
+                if email_task is not None:
+                    await email_task
+                async with lock:
+                    await work(runtime.store.mute_pending_touch_outbox, now(), reason="email disabled")
+                    email = email_task = email_stop = None
+                LOG.info("Email OFF; pending notifications muted")
+            else:
+                try:
+                    configuration = replace(settings.email, enabled=True)
+                    if os.environ.get("SES_SMTP_HOST"):
+                        from crypto_monitor.adapters.ses_smtp import SESEmailSMTPSettings
+                        SESEmailSMTPSettings.from_env()
+                except ValueError as exc:
+                    email_error = f"Email stays off: {exc}"
+                    LOG.warning("%s", email_error)
+                    return False
+                async with lock:
+                    if stop.is_set() or shutting_down:
+                        return False
+                    start_email(configuration)
+                    email_enabled = True
+                    email_enabled_since = now()
+                    email_error = None
+                LOG.info("Email ON; only new live activations will notify")
+            return email_enabled
+
+    async def toggle_email():
+        try:
+            return await change_email()
+        except Exception as exc:
+            report_email_failure(exc)
+            raise
 
     display = None
     if should_use_dashboard(settings):
         try:
             display = (dashboard_factory or TouchDashboard)(collector, layout=settings.layout,
-                highlight_seconds=float(policy.highlight_seconds))
+                highlight_seconds=float(policy.highlight_seconds), on_toggle_email=toggle_email)
         except Exception as exc:
             LOG.warning("Terminal unavailable; continuing plain logs (%s)", type(exc).__name__)
 
@@ -336,14 +427,15 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
             quiet = (live_started is None or tick.at <= live_started
                      or tick.at > observed + timedelta(seconds=1)
                      or (observed - tick.at).total_seconds() >= float(policy.max_age_seconds))
+            notify = email_enabled and (email_enabled_since is None or tick.at > email_enabled_since)
             activations = (await work(runtime.process, tick, quiet=quiet,
-                                      email_enabled=settings.email.enabled, observed=observed)
+                                      email_enabled=notify, observed=observed)
                            if runtime.may_touch(tick) else [])
         if not quiet:
             for activation in activations:
                 LOG.info("LIVE TOUCH %s %s %s price=%s", activation.symbol,
                          activation.level_name, activation.side, activation.level_price)
-            if activations and email is not None:
+            if activations and notify and email_enabled and email is not None:
                 email.notify()
 
     async def refreshing():
@@ -386,10 +478,9 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
         supervisor = supervisor_factory([m.symbol for m in runtime.markets], process, on_connect)
         if hasattr(supervisor, "on_ready"):
             supervisor.on_ready = on_ready
-        if settings.email.enabled:
-            email = email_factory(settings.database, settings.email,
-                retry_seconds=policy.email_retry_seconds, max_age_seconds=policy.max_age_seconds, now=now)
-            tasks.append(asyncio.create_task(email.run(stop)))
+        tasks.append(asyncio.create_task(watch_email()))
+        if email_enabled:
+            start_email(settings.email)
         tasks.extend((asyncio.create_task(supervisor.run(stop)), asyncio.create_task(refreshing())))
         if display is not None:
             tasks.append(asyncio.create_task(displays()))
@@ -407,9 +498,12 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
         shutting_down = True
         cancelled.set()
         loading_stop.set()
+        request_email_stop()
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
+        if email_task is not None:
+            await asyncio.gather(email_task, return_exceptions=True)
         if loading_task is not None:
             await asyncio.gather(loading_task, return_exceptions=True)
         await loop.run_in_executor(executor, runtime.close)

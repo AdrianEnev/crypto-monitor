@@ -5,6 +5,7 @@ connection or writes monitor state. Keyboard settings are restored on exit.
 """
 
 import asyncio
+import inspect
 import math
 import os
 import select
@@ -242,8 +243,11 @@ def render_touch_dashboard(snapshot, *, layout="table", page=0, page_size=None,
     stopped = snapshot.get("stopped", False)
     label = "STOPPED" if stopped else "LIVE" if state == "connected" else "RECONNECTING" if state in ("backoff", "connecting", "disconnected") else clean(state).upper()
     style = "dim" if stopped else "green" if state == "connected" else "yellow"
+    email_enabled = snapshot.get("email_enabled", False)
     header = Text.assemble(("CRYPTO MONITOR  ", "bold"), (label, f"bold {style}"),
-                          f"  {len(_symbols(snapshot))} coins  Email {'on' if snapshot.get('email_enabled') else 'off'}")
+                          "\n" if width < 76 else "  ",
+                          (f"Email {'ON' if email_enabled else 'OFF'}", "bold green" if email_enabled else "bold red"),
+                          (" (e)", "dim"), f"  {len(_symbols(snapshot))} coins")
     rows = [header, text(f"{local_time(snapshot.get('now'), date=True)} Europe/Sofia", "dim"),
             _fresh(snapshot, highlight_seconds)]
     if snapshot.get("error"):
@@ -257,7 +261,7 @@ def render_touch_dashboard(snapshot, *, layout="table", page=0, page_size=None,
     unavailable = sum(_status(index.get((symbol, name, side))) == "unavailable"
                       for symbol in _symbols(snapshot) for name, _ in GROUPS for side in ("low", "high"))
     rows.append(text(f"Page {page + 1}/{pages} · {len(symbols)} {'swept' if filter_mode == 'swept' else 'selected'} coins · {unavailable} unavailable levels", "dim"))
-    rows.append(text("t table · c cards · n/p pages · a all · s swept · q quit", "dim"))
+    rows.append(text("t table · c cards · n/p pages · a all · s swept · e email · q quit", "dim"))
     return Panel(Group(*rows), width=width, border_style=style, padding=(0, 1))
 
 
@@ -325,7 +329,8 @@ def keyboard_input(stream):
 
 class TouchDashboard:
     def __init__(self, collector, *, layout="table", highlight_seconds=60, console=None,
-                 input_stream=None, interval=0.2, live_factory=Live, page_size=None):
+                 input_stream=None, interval=0.2, live_factory=Live, page_size=None,
+                 on_toggle_email=None):
         if layout not in ("table", "cards"):
             raise ValueError("layout must be table or cards")
         if isinstance(highlight_seconds, bool) or not math.isfinite(highlight_seconds) or highlight_seconds <= 0:
@@ -337,6 +342,7 @@ class TouchDashboard:
         self.console = console or Console(file=sys.stdout)
         self.input_stream = sys.stdin if input_stream is None else input_stream
         self.interval, self.live_factory, self.page_size = interval, live_factory, page_size
+        self.on_toggle_email = on_toggle_email
         self.page, self.filter_mode = 0, "all"
 
     def handle_key(self, key, stop, snapshot):
@@ -352,6 +358,8 @@ class TouchDashboard:
             self.page = (self.page - 1) % pages
         elif key in ("a", "s"):
             self.filter_mode, self.page = ("all" if key == "a" else "swept"), 0
+        elif key == "e" and self.on_toggle_email is not None:
+            return self.on_toggle_email()
 
     def render(self, snapshot):
         return render_touch_dashboard(snapshot, layout=self.layout, page=self.page, page_size=self.page_size,
@@ -373,17 +381,45 @@ class TouchDashboard:
                 await self._tick(stop)
 
     async def run(self, stop):
-        snapshot = await self.collector()
-        with dashboard_logging(self.console), keyboard_input(self.input_stream) as read, self.live_factory(
-                self.render(snapshot), console=self.console, auto_refresh=False, screen=True,
-                redirect_stdout=False, redirect_stderr=False, vertical_overflow="ellipsis") as live:
-            while not stop.is_set():
-                for key in read().lower():
-                    self.handle_key(key, stop, snapshot)
-                snapshot = await self.collector()
-                live.update(self.render(snapshot), refresh=True)
-                await self._tick(stop)
-            live.update(self.render(dict(snapshot, stopped=True)), refresh=True)
+        pending_toggle = None
+        try:
+            snapshot = await self.collector()
+            with dashboard_logging(self.console), keyboard_input(self.input_stream) as read, self.live_factory(
+                    self.render(snapshot), console=self.console, auto_refresh=False, screen=True,
+                    redirect_stdout=False, redirect_stderr=False, vertical_overflow="ellipsis") as live:
+                while not stop.is_set():
+                    if pending_toggle is not None and pending_toggle.done():
+                        pending_toggle.result()
+                        pending_toggle = None
+                    for key in read().lower():
+                        if key == "e" and pending_toggle is not None:
+                            continue
+                        result = self.handle_key(key, stop, snapshot)
+                        if inspect.isawaitable(result):
+                            pending_toggle = asyncio.ensure_future(result)
+                        if stop.is_set():
+                            break
+                    if stop.is_set():
+                        break
+                    snapshot = await self.collector()
+                    live.update(self.render(snapshot), refresh=True)
+                    await self._tick(stop)
+                live.update(self.render(dict(snapshot, stopped=True)), refresh=True)
+        finally:
+            if pending_toggle is not None:
+                # Disabling may finish an in-flight email before updating its
+                # bookkeeping. Keep that work alive even when the UI is cancelled.
+                cancelled = False
+                while not pending_toggle.done():
+                    try:
+                        await asyncio.shield(pending_toggle)
+                    except asyncio.CancelledError:
+                        if pending_toggle.cancelled():
+                            raise
+                        cancelled = True
+                pending_toggle.result()
+                if cancelled:
+                    raise asyncio.CancelledError
 
 
 # Concise aliases for callers and standalone rendering previews.

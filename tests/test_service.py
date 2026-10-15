@@ -31,6 +31,15 @@ from tests.test_sqlite_store import D, MARKETS, event
 
 
 class SettingsTests(unittest.TestCase):
+    def setUp(self):
+        # CLI-only validation must not depend on the developer's real secrets.
+        self.enterContext(patch.dict(os.environ, {
+            "EMAIL_FROM": "default@example.com",
+            "ALERT_EMAIL_TO": "default-recipient@example.com",
+            "AWS_DEFAULT_REGION": "eu-central-1",
+        }, clear=True))
+        self.enterContext(patch("crypto_monitor.runtime.service.load_environment"))
+
     def test_committed_freshness_threshold_configuration_and_wiring(self):
         self.assertEqual(parse_settings([]).stale_after_minutes, 3)
         settings = parse_settings(["--stale-after-minutes", "7"])
@@ -52,28 +61,69 @@ class SettingsTests(unittest.TestCase):
         with patch.dict(os.environ, {"TERM": "dumb"}):
             self.assertFalse(should_use_dashboard(parse_settings([]), terminal))
 
-    def test_email_requires_explicit_enablement_and_complete_configuration(self):
-        self.assertFalse(parse_settings([]).email.enabled)
+    def test_email_defaults_on_and_explicit_addresses_override_environment(self):
+        self.assertEqual(parse_settings([]).email,
+                         EmailSettings(True, "default@example.com", "default-recipient@example.com", "eu-central-1"))
         args = ["--email-sender", "monitor@example.com", "--email-recipient", "recipient@example.com",
                 "--email-region", "eu-west-1"]
-        self.assertFalse(parse_settings(args).email.enabled)
+        self.assertEqual(parse_settings(args).email,
+                         EmailSettings(True, "monitor@example.com", "recipient@example.com", "eu-west-1"))
         configured = parse_settings(["--email-enabled"] + args)
         self.assertEqual(configured.email, EmailSettings(True, "monitor@example.com", "recipient@example.com", "eu-west-1"))
-        for incomplete in (["--email-enabled"], ["--email-enabled"] + args[:2],
-                           ["--email-enabled"] + args[:4]):
-            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
-                parse_settings(incomplete)
-            self.assertEqual(error.exception.code, 2)
+
+    def test_email_requires_complete_configuration_unless_disabled(self):
+        args = ["--email-sender", "monitor@example.com", "--email-recipient", "recipient@example.com",
+                "--email-region", "eu-west-1"]
+        with patch.dict(os.environ, {}, clear=True):
+            for incomplete in ([], ["--email-enabled"], args[:2], args[:4]):
+                with self.subTest(args=incomplete), contextlib.redirect_stderr(io.StringIO()), \
+                     self.assertRaises(SystemExit) as error:
+                    parse_settings(incomplete)
+                self.assertEqual(error.exception.code, 2)
+            for flag in ("--no-email", "--email-disabled"):
+                with self.subTest(flag=flag):
+                    self.assertFalse(parse_settings([flag]).email.enabled)
+
+    def test_email_enable_and_disable_flags_are_mutually_exclusive(self):
+        for flag in ("--no-email", "--email-disabled"):
+            for args in (("--email-enabled", flag), (flag, "--email-enabled")):
+                with self.subTest(args=args), contextlib.redirect_stderr(io.StringIO()), \
+                     self.assertRaises(SystemExit) as caught:
+                    parse_settings(list(args))
+                self.assertEqual(caught.exception.code, 2)
 
     def test_defaults_and_explicit_selection(self):
         defaults = parse_settings([])
-        self.assertEqual(defaults.database, Path("monitor.sqlite3").resolve())
-        self.assertEqual(defaults.top_n, 20)
+        self.assertEqual(defaults.database, Path(__file__).resolve().parents[1] / "monitor.sqlite3")
+        self.assertEqual(defaults.top_n, 100)
+        self.assertEqual(defaults.layout, "table")
+        self.assertTrue(defaults.email.enabled)
         settings = parse_settings(["--database", "example.sqlite3", "--top-n", "0",
-                                   "--include", "ethusdt, BTCUSDT,ethusdt", "--exclude", "ETHUSDT"])
+                                   "--include", "ethusdt, BTCUSDT,ethusdt", "--exclude", "ETHUSDT",
+                                   "--layout", "cards", "--no-email"])
+        self.assertEqual(settings.database, Path("example.sqlite3").resolve())
         self.assertEqual(settings.include_symbols, ("BTCUSDT", "ETHUSDT"))
         self.assertEqual(settings.exclude_symbols, ("ETHUSDT",))
         self.assertEqual(settings.top_n, 0)
+        self.assertEqual(settings.layout, "cards")
+        self.assertFalse(settings.email.enabled)
+
+    def test_short_options_match_existing_market_and_layout_options(self):
+        self.assertEqual(parse_settings(["-n", "42", "-l", "cards"]),
+                         parse_settings(["--top-n", "42", "--layout", "cards"]))
+
+    def test_default_database_is_stable_but_explicit_database_uses_working_directory(self):
+        defaults = parse_settings([])
+        previous = Path.cwd()
+        with tempfile.TemporaryDirectory() as directory:
+            try:
+                os.chdir(directory)
+                self.assertEqual(parse_settings([]), defaults)
+                self.assertEqual(parse_settings(["--database", "custom.sqlite3"]).database,
+                                 Path(directory).resolve() / "custom.sqlite3")
+            finally:
+                os.chdir(previous)
+            self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_invalid_settings_fail_before_startup(self):
         for args in (["--top-n", "-1"], ["--database", ""], ["--database", ":memory:"]):
@@ -372,6 +422,14 @@ class SignalTests(unittest.IsolatedAsyncioTestCase):
 
 
 class MainTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(patch.dict(os.environ, {
+            "EMAIL_FROM": "monitor@example.com",
+            "ALERT_EMAIL_TO": "recipient@example.com",
+            "AWS_DEFAULT_REGION": "eu-west-1",
+        }, clear=True))
+        self.enterContext(patch("crypto_monitor.runtime.service.load_environment"))
+
     def test_exit_codes_and_signal_cleanup(self):
         for error, expected in ((None, 0), (RuntimeError("failure"), 1)):
             runner = AsyncMock(side_effect=error)
