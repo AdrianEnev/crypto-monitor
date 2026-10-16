@@ -50,6 +50,7 @@ class ServiceHarness:
         self.stop = asyncio.Event()
         self.ready = asyncio.Event()
         self.senders = []
+        self.trade_ids = {}
         self.display = self.supervisor = self.task = None
         harness = self
 
@@ -107,8 +108,11 @@ class ServiceHarness:
         return self
 
     async def emit(self, price, *, symbol="FILUSDT"):
+        # Aggregate trade IDs increase per symbol, as on the exchange.
         self.clock += timedelta(seconds=1)
-        await self.supervisor.callback(tick(price, self.clock, symbol=symbol))
+        self.trade_ids[symbol] = self.trade_ids.get(symbol, 0) + 1
+        await self.supervisor.callback(tick(price, self.clock, symbol=symbol,
+                                            trade_id=self.trade_ids[symbol]))
 
     async def snapshot(self):
         return await self.display.collector()
@@ -222,7 +226,8 @@ class EmailToggleTests(unittest.IsolatedAsyncioTestCase):
         entered = asyncio.Event()
         release = threading.Event()
         loop = asyncio.get_running_loop()
-        original_process = TouchRuntime.process
+        # The durable contact write runs on the worker thread.
+        original_process = TouchRuntime.record
 
         def blocked_process(runtime, *args, **kwargs):
             loop.call_soon_threadsafe(entered.set)
@@ -230,7 +235,7 @@ class EmailToggleTests(unittest.IsolatedAsyncioTestCase):
                 raise TimeoutError("offline processing was not released")
             return original_process(runtime, *args, **kwargs)
 
-        with patch.object(TouchRuntime, "process", blocked_process):
+        with patch.object(TouchRuntime, "record", blocked_process):
             service = await ServiceHarness(self, self.path).start()
             self.addCleanup(release.set)
             processing = asyncio.create_task(service.emit("100"))

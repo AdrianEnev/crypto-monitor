@@ -17,9 +17,32 @@ from tests.test_touch_monitor import D, START, DELAYS, references
 MONTH_START = START.replace(day=1, hour=0)
 
 
-def event(opened, *, low="95", high="101"):
+def event(opened, *, low="95", high="101", close="96", opening="96"):
     return ClosedKline("TESTUSDT", MinuteCandle(opened, MINUTE, D(high), D(low),
-        D("96"), True, D("96")), opened + MINUTE, opened + MINUTE - timedelta(milliseconds=1))
+        D(close), True, D(opening)), opened + MINUTE, opened + MINUTE - timedelta(milliseconds=1))
+
+
+class PathREST:
+    """Minute candles from ``path(opened) -> (open, low, high, close)``; days derived."""
+
+    def __init__(self, path):
+        self.path, self.minute_calls = path, []
+
+    def fetch_daily_klines(self, symbol, *, start, end, as_of):
+        result = []
+        while start < end:
+            minutes = [self.path(start + index * MINUTE) for index in range(1440)]
+            result.append(Candle(start, DAY, max(D(m[2]) for m in minutes),
+                                 min(D(m[1]) for m in minutes), D(minutes[-1][3]), True))
+            start += DAY
+        return result
+
+    def iter_minute_klines(self, symbol, *, start, end, as_of):
+        self.minute_calls.append((start, end))
+        while start < end:
+            opening, low, high, close = self.path(start)
+            yield event(start, low=low, high=high, close=close, opening=opening)
+            start += MINUTE
 
 
 class FakeREST:
@@ -92,8 +115,10 @@ class TouchHistoryTests(unittest.TestCase):
         delays = {name: D("0.001") for name in DELAYS}  # 86.4 seconds
         TouchHistoryScanner(self.store, FakeREST(), delays).scan("TESTUSDT", asof)
         high = next(w for w in self.store.history_jobs("TESTUSDT") if w.name == "previous_month" and w.side == "high")
-        self.assertEqual(high.accepted_count, 3)
-        self.assertEqual(high.accepted_at, MONTH_START + 5 * MINUTE)
+        # Accepted at 00:01; the 00:02 minute starts before 00:02:26.4, so the
+        # next acceptance is the 00:03 minute, ending at 00:04.
+        self.assertEqual(high.accepted_count, 2)
+        self.assertEqual(high.accepted_at, MONTH_START + 4 * MINUTE)
 
     def test_complete_daily_no_touch_proof_skips_all_minute_requests(self):
         asof = MONTH_START + 2 * DAY
@@ -113,8 +138,10 @@ class TouchHistoryTests(unittest.TestCase):
         unavailable = {(name, side) for name, side, _ in result.unavailable}
         self.assertIn(("previous_month", "low"), unavailable)
         self.assertNotIn(("previous_month", "high"), unavailable)
-        self.assertEqual(self.store.record_price("TESTUSDT", D("89"), asof, DELAYS, notify=True), [])
-        self.assertEqual(len(self.store.record_price("TESTUSDT", D("100"), asof, DELAYS)), 1)
+        self.assertEqual(self.store.record_price("TESTUSDT", D("89"), asof, DELAYS, previous=D("91"),
+                                                 notify=True), [])
+        self.assertEqual(len(self.store.record_price("TESTUSDT", D("100"), asof, DELAYS,
+                                                     previous=D("99"))), 1)
 
     def test_daily_endpoint_failure_falls_back_to_validated_minutes(self):
         asof = MONTH_START + DAY
@@ -161,6 +188,55 @@ class TouchHistoryTests(unittest.TestCase):
         self.assertEqual(rest.minute_calls, [])
         high = next(w for w in self.store.history_jobs("TESTUSDT") if w.name == "previous_month" and w.side == "high")
         self.assertEqual(high.history_cursor, MONTH_START)
+
+    def high(self):
+        return next(w for w in self.store.history_jobs("TESTUSDT")
+                    if w.name == "previous_month" and w.side == "high")
+
+    def test_staying_above_after_delay_expiry_is_not_another_historical_contact(self):
+        # The STRK pattern: one crossing, then days entirely above the level.
+        asof = MONTH_START + 3 * DAY
+        self.initialize(asof)
+        one_day = {name: D("1") for name in DELAYS}
+        rest = PathREST(lambda opened: ("99", "99", "101", "101") if opened == MONTH_START
+                        else ("102", "101", "103", "102"))
+        result = TouchHistoryScanner(self.store, rest, one_day).scan("TESTUSDT", asof)
+        self.assertIn(("previous_month", "high"), result.verified)
+        self.assertEqual((self.high().accepted_count, self.high().accepted_at), (1, MONTH_START + MINUTE))
+        # Whole days above the level are proven untouched without minute data.
+        self.assertEqual(rest.minute_calls, [(MONTH_START, MONTH_START + DAY)])
+        self.assertEqual(self.high().cursor_price, D("102"))
+
+    def test_minute_that_starts_during_delay_cannot_accept_a_pre_deadline_touch(self):
+        # Audit trace: accepted 12:00:30; the only later touch, at 12:00:05 the
+        # next day, falls inside the delay. Its minute must not count.
+        accepted = MONTH_START + timedelta(hours=12, seconds=30)
+        asof = accepted + DAY + 5 * MINUTE
+        self.initialize(asof)
+        one_day = {name: D("1") for name in DELAYS}
+        deadline_minute = (accepted + DAY).replace(second=0)
+        self.store.advance_history(self.high(), MONTH_START + timedelta(hours=12))
+        self.store.record_price("TESTUSDT", D("100"), accepted, one_day, previous=D("99"),
+                                origin="history")
+        rest = PathREST(lambda opened: ("97", "97", "100", "97") if opened == deadline_minute
+                        else ("97", "96", "98", "97"))
+        TouchHistoryScanner(self.store, rest, one_day).scan("TESTUSDT", asof)
+        self.assertEqual((self.high().accepted_count, self.high().accepted_at), (1, accepted))
+
+    def test_gap_between_minutes_is_a_crossing_and_cursor_price_survives_restart(self):
+        asof = MONTH_START + 3 * MINUTE
+        self.initialize(asof)
+        rest = PathREST(lambda opened: ("97", "96", "99", "99") if opened == MONTH_START
+                        else ("101", "101", "102", "101"))
+        TouchHistoryScanner(self.store, rest, DELAYS).scan("TESTUSDT", asof)
+        self.assertEqual((self.high().accepted_count, self.high().accepted_at),
+                         (1, MONTH_START + 2 * MINUTE))
+        with TouchStore(self.path) as reopened:
+            later = asof + 2 * MINUTE
+            reopened.initialize_watches("TESTUSDT", references(later, only={"previous_month"}), later)
+            high = next(w for w in reopened.history_jobs("TESTUSDT")
+                        if w.name == "previous_month" and w.side == "high")
+            self.assertEqual((high.history_cursor, high.cursor_price), (asof, D("101")))
 
     def test_sqlite_write_failure_propagates_instead_of_hiding_as_missing_market_history(self):
         asof = MONTH_START + 3 * MINUTE

@@ -1,8 +1,9 @@
 # Cryptocurrency level-touch monitor
 
-Read-only Binance USD-M futures monitoring. Live trade prices activate a watched
-high or low as soon as they reach or pass it, including equality. Candle closes
-are not required. This project does not place trades.
+Read-only Binance USD-M futures monitoring. A watched high or low activates
+when consecutive live trades arrive at it or cross through it, from either
+direction. Staying above or below a level is not a new touch. Candle closes are
+not required. This project does not place trades.
 
 Read [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) for plain-language examples,
 settings, historical discovery, email behavior, and project structure.
@@ -64,8 +65,9 @@ explicit inclusions. Public Binance data does not require API credentials.
   marks genuinely missing data unavailable. It begins fresh alerts after the
   live handoff. Historical minute times are approximate, using the minute end.
 - Previous-week, monthly, and quarterly watches repeat after independently
-  configured delays. Ignored touches do not extend those delays. A fresh price
-  still beyond a level can activate again after expiry without returning first.
+  configured delays. A delay only suppresses touches: touches during it are
+  ignored, do not extend it, and never become a late alert. After expiry, the
+  next genuine touch or crossing activates; expiry alone never does.
 - Monday watches each activate once; they expire at the next Monday open and
   are undefined throughout Monday until the completed range is available Tuesday.
 - Monthly counts include accepted activations in the current monthly watch.
@@ -75,7 +77,7 @@ explicit inclusions. Public Binance data does not require API credentials.
 - Market selection and reference levels refresh daily at 00:00 UTC. Volumes and
   unavailable-watch retries refresh at five-minute UTC boundaries. Removed coins
   leave the current view; newly selected coins receive quiet history checks.
-- Terminal timestamps use Europe/Sofia; internal comparisons and periods use UTC.
+- Terminal timestamps and emails use Sofia time; internal comparisons and periods use UTC.
 
 ## Terminal controls
 
@@ -89,7 +91,7 @@ Start with `--layout table` or `--layout cards`; change layouts while running:
 | e | Toggle email alerts on/off |
 | q | Stop |
 
-All selected coins are accessible through pages. `S` means swept live, `E` swept
+All selected coins are accessible through pages. Coins are ordered by the highest timeframe they currently show as swept (`S` or `E`): previous quarter first, then previous month, previous week, Monday, and finally coins with no current sweep. Only the timeframe counts: a coin that swept a level several times, or swept both its low and high, ranks the same as one that swept that timeframe once. Ties keep the 24-hour volume order of market selection. The order applies to both the all and swept filters, the selected coins are unchanged, and a coin moves as its sweeps happen or its delays expire. `S` means swept live, `E` swept
 earlier, `-` ready again, and `N/A` unavailable. Monthly parentheses show accepted
 counts. A fresh panel emphasizes new live activations for
 `FRESH_HIGHLIGHT_SECONDS`. Use `--no-tui` for plain logs. Redirected output keeps
@@ -158,7 +160,9 @@ Use one service instance per SQLite database. Connections stay on their owning
 threads; live state and new outbox entries commit atomically. Do not delete the
 database to bypass a history problem. New additive touch tables preserve the
 legacy candle/hit records. No other exchange's history is silently substituted
-for Binance history.
+for Binance history. The first start after the crossing-rule upgrade quietly
+rebuilds every watch's counts and delays from history; earlier activation and
+email records stay in the database for audit.
 
 The first history scan for many coins can take time; daily ranges and saved
 cursors reduce unnecessary minute requests. Extremely short delays can exceed

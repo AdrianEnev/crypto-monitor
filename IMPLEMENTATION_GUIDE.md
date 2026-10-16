@@ -52,21 +52,28 @@ Initial checks cover the current week for previous-week levels, Tuesday onward f
 
 The scanner uses daily price ranges to skip days that could not produce an eligible activation. Where necessary, it checks minute history. Saved progress reduces repeated work after restart. The first scan of many coins and a long quarterly period can still take time.
 
-Historical minute data is useful, not automatically unavailable. A candle can establish that price touched during a minute without revealing the exact second. The saved historical activation time uses that minute's ending boundary and is labelled approximate, so it can be up to one minute later than the actual touch. This can affect activation counts or eligibility near a precise delay boundary; the monitor does not claim exact historical seconds.
+Historical minute data is useful, not automatically unavailable. A candle can establish that price touched or crossed a level during a minute, or between one minute's close and the next minute's open, without revealing the exact second. The saved historical activation time uses that minute's ending boundary and is labelled approximate. A minute that began during a delay is never accepted, even if its touch might have come after the deadline; this can miss a historical touch near a precise delay boundary but never counts one that happened too early. Minutes cannot show how many times price went back and forth, so historical counts are at most one per minute. The monitor does not claim exact historical seconds.
 
 Genuinely missing or malformed required coverage is **unavailable**. That watch is ignored for live alerts until verified; other usable watches continue. No MEXC or BingX prices are substituted for Binance prices. Unavailable watches are retried during refreshes.
 
-Before switching to LIVE, the monitor also checks the forming minute and joins the live feed quietly. A price already beyond a level during startup is recorded without emailing. Events from before the live handoff remain quiet even if they arrive afterward.
+Before switching to LIVE, the monitor also checks the forming minute and joins the live feed quietly. That minute's latest price becomes the starting point for live comparisons, so a price already beyond a level at startup is not a touch. Events from before the live handoff remain quiet even if they arrive afterward.
 
-The live connection keeps reading prices while those checks run. Prices received during loading are buffered and processed quietly before the LIVE screen appears. This prevents a long history check from leaving the incoming price feed unread. Ordinary prices that cannot activate a verified level are checked without unnecessary database writes.
+The live connection keeps reading prices while those checks run. Prices received during loading are buffered and processed quietly before the LIVE screen appears. This prevents a long history check from leaving the incoming price feed unread. Every price updates the in-memory comparison point, including prices during a delay; only an eligible touch writes to the database. Trades are ordered by Binance's aggregate trade ID, so an older or repeated trade cannot rewind that point, and buffered trades already covered by the forming-minute check are skipped.
 
 ## 3. What activates a level now?
 
 The live service receives Binance aggregate trade prices. It evaluates those updates as they are processed; it does not wait for a candle to close.
 
-- A high at 100 activates when the reported price reaches or exceeds 100.
-- A low at 90 activates when the reported price reaches or falls below 90.
-- No one-tick excess, return inside, minimum retreat, or candle closing condition is required.
+A level activates when two consecutive trades arrive at it or cross through it, from either direction. For a high (or low) at 100:
+
+| Prices | Result |
+|---|---|
+| 99 → 100, or 101 → 100 | Touch, arriving from below or above |
+| 99 → 101, or 101 → 99 | Touch, crossing without a trade exactly at 100 |
+| 101 → 102 | No touch: price stays beyond the level |
+| 100 → 100 → 101 | One touch: a run at the level counts once, and leaving it is not a touch |
+
+The high/low label names which source level was touched, not the direction. No one-tick excess, minimum retreat, or candle closing condition is required. The first price after startup or reconnection only establishes the comparison point.
 
 These prices arrive through Binance's live aggregate-trade stream; “immediate” means reacting to the received price update, subject to network and processing time. [Binance's official trade-stream documentation](https://developers.binance.com/en/docs/catalog/core-trading-derivatives-trading-usd-s-m-futures/api/ws-streams/market#aggregate-trade-streams).
 
@@ -78,10 +85,10 @@ Suppose the weekly delay is five days and a high activates Monday at 10:00:
 
 1. Its next eligible time is Saturday at 10:00, calculated as 120 elapsed hours in UTC.
 2. A touch Thursday is ignored and does not extend Saturday's deadline.
-3. Once the delay ends, the next fresh live update can activate it again if price is still at or beyond the level. Price does not have to leave and cross again.
-4. If price is inside the level when the delay ends, it waits until price reaches the level.
+3. Once the delay ends, the next genuine touch or crossing activates it. The delay ending does not create an activation by itself, even if price is beyond the level at that moment.
+4. A touch ignored during the delay is never delivered later.
 
-A level continuously beyond its price can therefore activate once per configured delay. That is an accepted activation count, rather than a count of separate physical crossings.
+A level that price stays beyond for days therefore activates only once. Counts are accepted touches; touches ignored during a delay are not counted.
 
 Monthly numbers count **accepted activations** during the current monthly watch period, including accepted ones discovered quietly. Ignored crossings during a delay do not inflate the count. A monthly count stays visible after the swept badge clears, and resets for the new monthly reference.
 
@@ -127,7 +134,7 @@ starting without email.
 
 Email starts enabled; use `--no-email` to disable it at startup. The existing `--email-enabled` option explicitly selects the default. Startup loads shared credentials from `Trading_NEW/.env` alongside the required project `.env`; process variables take precedence, followed by project values, then shared defaults. Required monitor timings still come directly from the project file. Shared `SES_SMTP_*` credentials select encrypted SES SMTP delivery, with `EMAIL_FROM` and `ALERT_EMAIL_TO` supplying the addresses. Sender and recipient arguments override those defaults. SMTP delivery uses the region in `SES_SMTP_HOST`. Without that host, the SES API continues to use Boto3's standard credential chain, with `--email-region` overriding `AWS_REGION` or `AWS_DEFAULT_REGION`. See the README for variable names and recipient fallbacks.
 
-Each eligible fresh live activation gets a separate message, sent promptly. There is no five-minute combined digest in the executable touch service. Messages show the level, touched time in Sofia and UTC, and a stable activation ID.
+Each eligible fresh live activation gets a separate message, sent promptly. There is no five-minute combined digest in the executable touch service. Each message is a short HTML card with a matching plain-text version, sent through both SMTP and the SES API. It shows the coin, the level name and price, the reference period (for example "September 2026"), and the touch time in Sofia time. Each notification is claimed atomically before sending, so two senders on one database cannot both deliver it. A message whose event time is too far ahead of the clock, as after a backward clock change, is muted rather than sent as fresh.
 
 Historical discoveries never enter this email queue. With email disabled, events remain available to the terminal but do not accumulate mail to send later. Prior-run pending notifications are muted when starting a new run; legacy closed-candle pending records are preserved but not consumed by the new sender.
 
@@ -135,7 +142,7 @@ Provider failures retry using the environment timings while the message remains 
 
 ## 8. Terminal designs you can switch
 
-Table view provides a broad overview. Card view spells out each coin's low/high statuses, prices, and relevant times. All selected coins are accessible through pages; there is no ten-alert cutoff.
+Table view provides a broad overview. Card view spells out each coin's low/high statuses, prices, and relevant times. All selected coins are accessible through pages; there is no ten-alert cutoff. Coins are ordered by the highest timeframe they currently show as swept (`S` or `E`): previous quarter first, then previous month, previous week, Monday, and finally coins with no current sweep. Only the timeframe counts: a coin that swept a level several times, or swept both its low and high, ranks the same as one that swept that timeframe once. Ties keep the 24-hour volume order of market selection. The order applies to both the all and swept filters, the selected coins are unchanged, and a coin moves as its sweeps happen or its delays expire.
 
 | Key | Action |
 |---|---|

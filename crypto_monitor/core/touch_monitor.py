@@ -1,7 +1,10 @@
-"""Small price-touch rules shared by live monitoring and historical discovery.
+"""Small price-contact rules shared by live monitoring and historical discovery.
 
-A level is reached when price equals or passes it. A repeat delay measures
-elapsed UTC time from an accepted activation; ignored touches never move it.
+A contact happens when consecutive ordered prices arrive at or pass through a
+level, from either direction. Remaining beyond a level is not a contact, and a
+run of prices exactly at the level is one contact. A repeat delay measures
+elapsed UTC time from an accepted activation; it only suppresses contacts and
+never creates one when it expires.
 """
 
 from dataclasses import dataclass
@@ -14,6 +17,8 @@ from crypto_monitor.core.level_sweep import DAY, Period, reference_periods
 
 REPEAT_NAMES = ("previous_week", "previous_month", "previous_quarter")
 WATCH_NAMES = ("monday",) + REPEAT_NAMES
+# Version 1 accepted any price at or beyond a level. Version 2 requires contact.
+RULES_VERSION = 2
 
 
 def utc_time(value: datetime) -> datetime:
@@ -52,16 +57,59 @@ def validate_delays(delays: Mapping[str, Decimal]) -> None:
         delay_duration(value)
 
 
-def range_touches(side: str, level: Decimal, low: Decimal, high: Decimal) -> bool:
+def crosses(previous: Decimal | None, current: Decimal, level: Decimal) -> bool:
+    """Exact contact between two consecutive trades, from either direction.
+
+    An unknown previous price establishes state without a contact. Leaving an
+    equality run does not count; returning to the level later does.
+    """
+    price_value(current)
+    price_value(level)
+    if previous is None:
+        return False
+    price_value(previous)
+    return previous != level and min(previous, current) <= level <= max(previous, current)
+
+
+def contact_possible(previous: Decimal | None, low: Decimal, high: Decimal,
+                     level: Decimal) -> bool:
+    """Whether a range that followed ``previous`` may contain a contact.
+
+    False is proof of no contact, so callers may skip finer history. True
+    means finer prices are needed, or the range alone is evidence of contact.
+    """
     for value in (level, low, high):
         price_value(value)
     if low > high:
         raise ValueError("low must not exceed high")
-    if side == "high":
-        return high >= level
-    if side == "low":
-        return low <= level
-    raise ValueError("side must be high or low")
+    if previous is None:
+        return low <= level <= high and not low == high == level
+    price_value(previous)
+    if previous == level:
+        return low < level or high > level
+    return min(previous, low) <= level <= max(previous, high)
+
+
+def candle_contacts(previous: Decimal | None, opening: Decimal | None, low: Decimal,
+                    high: Decimal, close: Decimal, level: Decimal) -> bool:
+    """Conservative contact evidence from one candle following ``previous``.
+
+    OHLC cannot show the order or number of trades inside the candle. A gap
+    from the previous close counts as a crossing. During an equality run only
+    proven departures and returns count: prices on both sides of the level,
+    or a close back at the level after leaving it. Unknown history uses the
+    candle's own open, or else requires the range to reach the level.
+    """
+    price_value(close)
+    if previous is None:
+        previous = opening
+    if previous is None:
+        return contact_possible(None, low, high, level)
+    if previous != level:
+        return contact_possible(previous, low, high, level)
+    for value in (level, low, high):
+        price_value(value)
+    return low < level < high or (close == level and (low < level or high > level))
 
 
 def watch_window(name: str, source: Period) -> Period:
@@ -107,6 +155,8 @@ class TouchWatch:
     accepted_count: int
     origin: str | None
     approximate: bool
+    # Last known price at history_cursor, if the replay could establish one.
+    cursor_price: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -122,6 +172,9 @@ class TouchActivation:
     origin: Literal["live", "history"]
     captured_quote_volume: Decimal
     approximate: bool = False
+    # Diagnostic evidence; historical candles have no single trigger trade.
+    previous_price: Decimal | None = None
+    trigger_price: Decimal | None = None
 
     @property
     def watch(self):

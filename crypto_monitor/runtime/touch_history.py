@@ -1,9 +1,13 @@
 """Quiet current-period discovery with independent coverage for each watch.
 
-Complete daily ranges prove when no touch was possible, avoiding unnecessary
+Complete daily ranges prove when no contact was possible, avoiding unnecessary
 minute downloads. Other intervals use validated closed one-minute history.
 The resulting time is the containing minute's end, rather than an invented
 historical second. Failures make the affected side unavailable, never untouched.
+
+Contacts need the price before each interval. Each side keeps the price at its
+cursor; a skip records the daily close when it is known and otherwise marks
+the price unknown, so a later minute is never compared with a stale price.
 """
 
 from dataclasses import dataclass
@@ -12,11 +16,16 @@ from itertools import islice
 import sqlite3
 
 from crypto_monitor.core.level_sweep import DAY, MINUTE
-from crypto_monitor.core.touch_monitor import next_eligible, range_touches, utc_time, validate_delays
+from crypto_monitor.core.touch_monitor import contact_possible, next_eligible, utc_time, validate_delays
 
 
 def _key(watch):
     return watch.name, watch.side, watch.source_start
+
+
+def _price_at(daily, day, through):
+    """A completed day's close is the exact price at its end, else unknown."""
+    return daily.close if daily is not None and through == day + DAY else None
 
 
 @dataclass(frozen=True)
@@ -45,10 +54,14 @@ class TouchHistoryScanner:
         if watch.level_price is None or watch.history_cursor >= end:
             return False
         if watch.accepted_at is not None:
-            eligible = next_eligible(watch.name, watch.accepted_at, watch.watch_end, self.delays)
-            if eligible >= end:
+            if watch.name == "monday":
                 return False
-        return daily is None or range_touches(watch.side, watch.level_price, daily.low, daily.high)
+            # Only a minute starting at or after the deadline can be accepted.
+            eligible = next_eligible(watch.name, watch.accepted_at, watch.watch_end, self.delays)
+            if eligible > end - MINUTE:
+                return False
+        return daily is None or contact_possible(watch.cursor_price, daily.low, daily.high,
+                                                 watch.level_price)
 
     def scan(self, symbol: str, as_of: datetime) -> HistoryScanResult:
         self._check_cancelled()
@@ -96,16 +109,17 @@ class TouchHistoryScanner:
                 for watch in watches:
                     if self._needs_minutes(watch, daily, end):
                         # No accepted activation can occur before its fixed
-                        # deadline, even if price stays beyond the level.
+                        # deadline. Replay from one minute earlier, so the
+                        # first eligible minute has a known preceding price.
                         if watch.accepted_at is not None:
                             eligible = next_eligible(watch.name, watch.accepted_at,
                                                      watch.watch_end, self.delays)
-                            prefix = eligible.replace(second=0, microsecond=0)
+                            prefix = eligible.replace(second=0, microsecond=0) - MINUTE
                             if prefix > watch.history_cursor:
                                 self.store.advance_history(watch, min(prefix, end))
                         candidates.append(watch)
                     else:
-                        self.store.advance_history(watch, end)
+                        self.store.advance_history(watch, end, _price_at(daily, day, end))
                 if candidates:
                     keys = {_key(watch) for watch in candidates}
                     # Split at different side cursors. A gap in an older watch
@@ -145,7 +159,8 @@ class TouchHistoryScanner:
                                     not self._needs_minutes(watch, daily, interval_end) for watch in remaining
                                 ):
                                     for watch in remaining:
-                                        self.store.advance_history(watch, interval_end)
+                                        self.store.advance_history(watch, interval_end,
+                                                                   _price_at(daily, day, interval_end))
                                     expected = interval_end
                         except HistoryScanCancelled:
                             raise
@@ -158,7 +173,8 @@ class TouchHistoryScanner:
                                 if _key(watch) not in interval_keys or watch.history_cursor >= interval_end:
                                     continue
                                 if not self._needs_minutes(watch, daily, interval_end):
-                                    self.store.advance_history(watch, interval_end)
+                                    self.store.advance_history(watch, interval_end,
+                                                               _price_at(daily, day, interval_end))
                                     continue
                                 reason = f"minute history unavailable: {exc}"
                                 failures[_key(watch)] = reason

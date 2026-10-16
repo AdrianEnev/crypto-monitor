@@ -69,17 +69,23 @@ def _bare_address(value, label):
 
 
 def _simple_text(content):
+    """Subject, required text body, optional HTML alternative and their charsets."""
     try:
         simple = content["Simple"]
         subject = simple["Subject"]["Data"]
         body = simple["Body"]["Text"]
         text = body["Data"]
         charset = body.get("Charset", "utf-8")
+        rich = simple["Body"].get("Html")
+        markup = rich["Data"] if rich is not None else None
+        markup_charset = rich.get("Charset", "utf-8") if rich is not None else None
     except (KeyError, TypeError, AttributeError):
         raise ValueError("SES SMTP requires Simple Subject and Text body content") from None
     if not all(isinstance(value, str) for value in (subject, text, charset)):
         raise ValueError("SES SMTP message content must be text")
-    return subject, text, charset
+    if rich is not None and not all(isinstance(value, str) for value in (markup, markup_charset)):
+        raise ValueError("SES SMTP message content must be text")
+    return subject, text, charset, markup, markup_charset
 
 
 class SESEmailSMTPClient:
@@ -97,13 +103,16 @@ class SESEmailSMTPClient:
         if not isinstance(recipients, (list, tuple)) or len(recipients) != 1:
             raise ValueError("SES SMTP requires exactly one recipient")
         recipient = _bare_address(recipients[0], "recipient")
-        subject, text, charset = _simple_text(Content)
+        subject, text, charset, markup, markup_charset = _simple_text(Content)
         message = EmailMessage(policy=SMTP)
         message["From"] = sender
         message["To"] = recipient
         message["Subject"] = subject
         message["Message-ID"] = make_msgid()
         message.set_content(text, charset=charset)
+        if markup is not None:
+            # multipart/alternative: clients without HTML show the text part.
+            message.add_alternative(markup, subtype="html", charset=markup_charset)
         context = (self._context_factory or ssl.create_default_context)()
         settings = self.settings
         try:

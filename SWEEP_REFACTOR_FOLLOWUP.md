@@ -2,6 +2,8 @@
 
 October 13, 2026. Review document only; implementation has not started.
 
+> **Superseded on October 16, 2026:** repeats while price stays beyond a level, described below, produced false alerts. The monitor now requires an actual touch or crossing from either direction; a delay only suppresses touches. See [IMPLEMENTATION_GUIDE.md](IMPLEMENTATION_GUIDE.md) sections 3–4.
+
 This updates the earlier [proposal](SWEEP_REFACTOR_PROPOSAL.md). The distance/retreat idea is removed. The examples below explain the choices that still need an answer.
 
 ## 1. Your latest decisions

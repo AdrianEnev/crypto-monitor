@@ -60,15 +60,22 @@ class MemoryOutbox:
                      if not row.muted and row.sent_at is None
                      and (row.next_attempt_at is None or row.next_attempt_at <= now))[:limit]
 
-    def expire_touch_outbox(self, before):
+    def expire_touch_outbox(self, before, *, after=None):
         for row in self.rows.values():
-            if row.sent_at is None and row.activation.touched_at <= before:
+            if row.sent_at is None and (row.activation.touched_at <= before
+                                        or (after is not None and row.activation.touched_at >= after)):
                 row.muted = True
 
-    def begin_touch_outbox_attempt(self, identity, attempted_at):
+    def begin_touch_outbox_attempt(self, identity, attempted_at, *, expected_attempts=None,
+                                   lease_until=None):
         if self.failure == "begin":
             raise sqlite3.OperationalError("attempt persistence unavailable")
-        self.rows[identity].attempt_count += 1
+        row = self.rows[identity]
+        if row.muted or row.sent_at is not None or (
+                expected_attempts is not None and row.attempt_count != expected_attempts):
+            return False
+        row.attempt_count += 1
+        return True
 
     def record_touch_outbox_failure(self, identity, error, next_attempt_at):
         if self.failure == "failure":
@@ -97,27 +104,81 @@ class TouchEmailTests(unittest.TestCase):
             client=self.client, store_factory=lambda path: self.store,
             now=lambda: self.clock[0])
 
-    def test_single_message_uses_touch_time_sofia_utc_and_exact_price(self):
-        subject, body = touch_email_content(activation())
-        self.assertIn("FILUSDT", subject)
-        self.assertIn("high", subject)
-        self.assertIn("2026-10-13 15:00:00 EEST", body)
-        self.assertIn("2026-10-13T12:00:00Z", body)
-        self.assertIn("1.231000000000000001 USDT", body)
-        self.assertIn("Activation ID: activation-1", body)
-        self.assertNotIn("confirmed:", body)
+    def test_single_message_is_concise_with_sofia_time_and_exact_price(self):
+        subject, text, markup = touch_email_content(activation())
+        self.assertEqual(subject, "FILUSDT · Previous month high touched")
+        self.assertEqual(text, "\n".join([
+            "FILUSDT · Previous month high touched", "",
+            "Level price: 1.231000000000000001 USDT",
+            "Reference: October 2026",
+            "Touched at (Sofia time): 13 Oct 2026, 15:00:00",
+        ]))
+        for value in ("FIL / USDT", "Previous month high touched", "1.231000000000000001",
+                      "October 2026", "13 Oct 2026, 15:00:00", "Sofia time"):
+            self.assertIn(value, markup)
+        for removed in ("Activation", "activation-1", "EEST", "Europe/Sofia", "UTC",
+                        "280180000", "candle close", "Z<"):
+            with self.subTest(removed=removed):
+                self.assertNotIn(removed, text)
+                self.assertNotIn(removed, markup)
 
-    def test_each_named_level_and_side_is_a_separate_message(self):
+    def test_readable_references_winter_time_and_escaped_html(self):
+        winter = datetime(2026, 1, 5, 10, 30, 5, tzinfo=timezone.utc)
+        cases = (("previous_week", datetime(2025, 12, 29, tzinfo=timezone.utc), "29 Dec 2025 – 4 Jan 2026"),
+                 ("previous_week", datetime(2026, 9, 28, tzinfo=timezone.utc), "28 Sep – 4 Oct 2026"),
+                 ("previous_week", datetime(2026, 10, 5, tzinfo=timezone.utc), "5–11 Oct 2026"),
+                 ("previous_quarter", datetime(2026, 7, 1, tzinfo=timezone.utc), "Q3 2026"),
+                 ("monday", datetime(2026, 10, 12, tzinfo=timezone.utc), "Monday 12 Oct 2026"))
+        for level, start, expected in cases:
+            with self.subTest(level=level, start=start):
+                value = activation(level=level, touched_at=winter)
+                value.reference_period_start = start
+                _, text, _ = touch_email_content(value)
+                self.assertIn(f"Reference: {expected}", text)
+                self.assertIn("Touched at (Sofia time): 5 Jan 2026, 12:30:05", text)
+        odd = activation()
+        odd.symbol, odd.level_price = "<b>X</b>", Decimal("1E-7")
+        subject, text, markup = touch_email_content(odd)
+        self.assertNotIn("<b>X</b>", markup)
+        self.assertIn("&lt;b&gt;X&lt;/b&gt;", markup)
+        self.assertIn("0.0000001", text)
+
+    def test_each_named_level_and_side_is_a_separate_message_with_html_and_text(self):
         self.store.add(activation("q-high", level="previous_quarter"))
         self.store.add(activation("m-low", side="low"))
         self.assertEqual(self.dispatcher.send_pending(), 3)
         self.assertEqual(self.client.send_email.call_count, 3)
-        bodies = [call.kwargs["Content"]["Simple"]["Body"]["Text"]["Data"]
-                  for call in self.client.send_email.call_args_list]
-        for identity in self.store.rows:
-            self.assertEqual(sum(f"Activation ID: {identity}" in body for body in bodies), 1)
+        subjects = sorted(call.kwargs["Content"]["Simple"]["Subject"]["Data"]
+                          for call in self.client.send_email.call_args_list)
+        self.assertEqual(subjects, ["FILUSDT · Previous month high touched",
+                                    "FILUSDT · Previous month low touched",
+                                    "FILUSDT · Previous quarter high touched"])
+        for call in self.client.send_email.call_args_list:
+            body = call.kwargs["Content"]["Simple"]["Body"]
+            self.assertEqual(set(body), {"Text", "Html"})
+            self.assertTrue(body["Html"]["Data"].startswith("<!doctype html>"))
         self.assertEqual(self.dispatcher.send_pending(), 0)
         self.client.close.assert_not_called()
+
+    def test_row_claimed_by_another_sender_is_skipped(self):
+        self.store.rows["activation-1"].attempt_count = 1  # Claimed after this load.
+        original = self.store.load_touch_outbox
+
+        def stale_load(now, limit=100):
+            entries = original(now, limit)
+            for entry in entries:
+                entry.attempt_count = 0
+            return entries
+
+        self.store.load_touch_outbox = stale_load
+        self.assertEqual(self.dispatcher.send_pending(), 0)
+        self.client.send_email.assert_not_called()
+
+    def test_clock_moved_backward_mutes_instead_of_sending_as_fresh(self):
+        self.clock[0] -= timedelta(minutes=5)
+        self.assertEqual(self.dispatcher.send_pending(), 0)
+        self.assertTrue(self.store.rows["activation-1"].muted)
+        self.client.send_email.assert_not_called()
 
     def test_due_retry_uses_fixed_delay_without_extending_event_freshness(self):
         self.client.send_email.side_effect = TimeoutError("secret request details")
@@ -315,11 +376,11 @@ class TouchSQLiteEmailTests(unittest.TestCase):
                         store.advance_history(watch, START)
                         store.mark_history_complete("FILUSDT", watch.name, watch.source_start, START)
                 quiet = store.record_price("FILUSDT", Decimal("90"), START, delays,
-                                           origin="history", notify=True)
+                                           previous=Decimal("91"), origin="history", notify=True)
                 self.assertEqual(len(quiet), 2)
                 self.assertEqual(store.load_touch_outbox(START), ())
                 live = store.record_price("FILUSDT", Decimal("100"), START, delays,
-                                          notify=True)
+                                          previous=Decimal("99"), notify=True)
                 self.assertEqual(len(live), 2)
             client = MagicMock()
             client.send_email.return_value = {"MessageId": "real-queue-accepted"}
@@ -331,6 +392,36 @@ class TouchSQLiteEmailTests(unittest.TestCase):
                 store.begin_run(START + timedelta(seconds=1))
             self.assertEqual(sender.send_pending(), 0)
             client.send_email.assert_called_once()
+
+    def test_two_senders_on_one_database_deliver_a_notification_once(self):
+        delays = {name: Decimal("5") for name in
+                  ("previous_week", "previous_month", "previous_quarter")}
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "touch.sqlite3"
+            with TouchStore(path) as store:
+                periods = reference_periods(START)
+                store.initialize_watches("FILUSDT", {"previous_month": ReferenceLevels(
+                    periods["previous_month"], Levels(Decimal("100"), Decimal("90")))}, START)
+                for watch in store.history_jobs("FILUSDT"):
+                    store.advance_history(watch, START)
+                    store.mark_history_complete("FILUSDT", watch.name, watch.source_start, START)
+                store.record_price("FILUSDT", Decimal("100"), START, delays,
+                                   previous=Decimal("99"), notify=True)
+            first_client, second_client = MagicMock(), MagicMock()
+            second = TouchEmailDispatcher(path, SETTINGS, retry_seconds=3, max_age_seconds=30,
+                                          client=second_client, now=lambda: START)
+
+            def accept_while_second_sender_runs(**kwargs):
+                # The second sender runs mid-send; it must see a claimed row.
+                self.assertEqual(second.send_pending(), 0)
+                return {"MessageId": "first"}
+
+            first_client.send_email.side_effect = accept_while_second_sender_runs
+            first = TouchEmailDispatcher(path, SETTINGS, retry_seconds=3, max_age_seconds=30,
+                                         client=first_client, now=lambda: START)
+            self.assertEqual(first.send_pending(), 1)
+            first_client.send_email.assert_called_once()
+            second_client.send_email.assert_not_called()
 
 
 if __name__ == "__main__":

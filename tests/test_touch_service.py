@@ -144,7 +144,9 @@ class TouchRuntimeTests(unittest.TestCase):
         rest = FakeREST()
         first = self.runtime(rest)
         first.prepare(START)
-        first.process(tick("100", START + timedelta(seconds=1)), quiet=False,
+        first.process(tick("99", START + timedelta(milliseconds=500)), quiet=False,
+                      email_enabled=True, observed=START + timedelta(milliseconds=500))
+        first.process(tick("100", START + timedelta(seconds=1), trade_id=2), quiet=False,
                       email_enabled=True, observed=START + timedelta(seconds=1))
         self.assertEqual(len(first.store.load_touch_outbox(START + timedelta(seconds=2))), 4)
         first.close()
@@ -179,12 +181,14 @@ class TouchRuntimeTests(unittest.TestCase):
         before = START.replace(day=31, hour=0)
         runtime = self.runtime()
         runtime.prepare(before)
-        accepted = runtime.process(tick("100", before + timedelta(seconds=1)), quiet=False,
+        runtime.process(tick("99", before), quiet=False, email_enabled=False, observed=before)
+        accepted = runtime.process(tick("100", before + timedelta(seconds=1), trade_id=2), quiet=False,
                                    email_enabled=False, observed=before + timedelta(seconds=1))
         old_month = next(hit for hit in accepted if hit.level_name == "previous_month")
         after = before.replace(month=11, day=1)
         runtime.refresh(after, daily=True)
-        current = runtime.process(tick("100", after + timedelta(seconds=1)), quiet=False,
+        runtime.process(tick("99", after, trade_id=3), quiet=False, email_enabled=False, observed=after)
+        current = runtime.process(tick("100", after + timedelta(seconds=1), trade_id=4), quiet=False,
                                   email_enabled=False, observed=after + timedelta(seconds=1))
         self.assertEqual([hit.level_name for hit in current], ["previous_month"])
         self.assertNotEqual(current[0].reference_period_start, old_month.reference_period_start)
@@ -212,12 +216,98 @@ class TouchRuntimeTests(unittest.TestCase):
         self.assertTrue(all(row["status"] == "untouched" for row in snapshot["watches"]
                             if row["symbol"] == "BTCUSDT"))
 
+    def test_first_trade_after_restart_only_establishes_price_state(self):
+        runtime = self.runtime()
+        runtime.prepare(START)
+        self.assertEqual(runtime.process(tick("101", START), quiet=False, email_enabled=True,
+                                         observed=START), [])
+        self.assertEqual(runtime.store.load_touch_outbox(START), ())
+
+    def test_partial_handoff_seeds_price_and_skips_trades_it_already_covers(self):
+        runtime = self.runtime(FakeREST(partial_range=("99", "95")))
+        runtime.prepare(START)
+        handoff = START  # The runtime clock stamps the snapshot.
+        runtime.seed_partial_minutes(handoff)
+        # Buffered trades from before the snapshot cannot rewind its price.
+        self.assertEqual(runtime.process(tick("101", handoff - timedelta(seconds=1), trade_id=5),
+                                         quiet=True, email_enabled=False, observed=handoff), [])
+        hits = runtime.process(tick("100", handoff + timedelta(seconds=1), trade_id=6), quiet=False,
+                               email_enabled=False, observed=handoff + timedelta(seconds=1))
+        self.assertEqual({(hit.side, hit.previous_price) for hit in hits}, {("high", Decimal("97"))})
+
+    def test_older_or_repeated_trade_cannot_rewind_price_state(self):
+        runtime = self.runtime()
+        runtime.prepare(START)
+        at = START + timedelta(seconds=1)
+        runtime.process(tick("101", at, trade_id=10), quiet=False, email_enabled=False, observed=at)
+        for stale in (tick("99", at, trade_id=9), tick("99", at, trade_id=10)):
+            self.assertEqual(runtime.process(stale, quiet=False, email_enabled=False, observed=at), [])
+        # Price state is still 101, so moving to 102 is not a crossing.
+        self.assertEqual(runtime.process(tick("102", at, trade_id=11), quiet=False,
+                                         email_enabled=False, observed=at), [])
+
     def test_database_failure_during_refresh_is_fatal(self):
         runtime = self.runtime()
         runtime.prepare(START)
         with patch.object(runtime.store, "dashboard_snapshot", side_effect=sqlite3.OperationalError("disk failed")):
             with self.assertRaises(sqlite3.OperationalError):
                 runtime.refresh(START, daily=False)
+
+
+class BidirectionalContactTests(unittest.TestCase):
+    """The audit's acceptance contract, through the production runtime path."""
+
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        one_day = {name: Decimal("1") for name in DELAYS}
+        self.runtime = TouchRuntime(
+            Settings(database=Path(directory.name) / "contract.sqlite3", no_tui=True),
+            TouchSettings(one_day, Decimal("60"), Decimal("3"), Decimal("30")), {}, threading.Event(),
+            rest_factory=FakeREST, now=lambda: START)
+        self.addCleanup(self.runtime.close)
+        self.runtime.prepare(START)
+        self.trade_id = 0
+
+    def price(self, value, elapsed):
+        self.trade_id += 1
+        at = START + elapsed
+        hits = self.runtime.process(tick(value, at, trade_id=self.trade_id), quiet=False,
+                                    email_enabled=False, observed=at)
+        return sorted({hit.side for hit in hits})
+
+    def first_contact(self, inside, contact, side):
+        self.assertEqual(self.price(inside, timedelta()), [])
+        self.assertEqual(self.price(contact, timedelta(seconds=1)), [side])
+
+    def test_staying_beyond_a_level_after_the_delay_is_not_a_contact(self):
+        for inside, contact, later, side in (("99", "101", "102", "high"), ("91", "89", "88", "low")):
+            with self.subTest(side=side):
+                self.setUp()
+                self.first_contact(inside, contact, side)
+                self.assertEqual(self.price(later, DAY + timedelta(seconds=1)), [])
+
+    def test_equality_plateau_is_one_contact(self):
+        for inside, level, side in (("99", "100", "high"), ("91", "90", "low")):
+            with self.subTest(side=side):
+                self.setUp()
+                self.first_contact(inside, level, side)
+                self.assertEqual(self.price(level, DAY + timedelta(seconds=1)), [])
+
+    def test_crossing_back_through_a_level_after_the_delay_is_a_contact(self):
+        for inside, contact, back, side in (("99", "101", "99", "high"), ("91", "89", "91", "low")):
+            with self.subTest(side=side):
+                self.setUp()
+                self.first_contact(inside, contact, side)
+                self.assertEqual(self.price(back, DAY + timedelta(seconds=2)), [side])
+
+    def test_prices_during_the_delay_keep_state_current(self):
+        self.first_contact("99", "101", "high")
+        # Down through the level during the delay is ignored, and the price
+        # stays below; expiry alone creates nothing, an upward cross does.
+        self.assertEqual(self.price("98", timedelta(hours=1)), [])
+        self.assertEqual(self.price("97", DAY + timedelta(seconds=1)), [])
+        self.assertEqual(self.price("100", DAY + timedelta(seconds=2)), ["high"])
 
 
 class TouchServiceTests(unittest.IsolatedAsyncioTestCase):

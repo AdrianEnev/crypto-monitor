@@ -84,6 +84,49 @@ class RenderTests(unittest.TestCase):
         self.assertNotIn("ADAUSDT", value)
         self.assertIn("1 swept coins", value)
 
+    def test_default_order_puts_higher_timeframe_sweeps_first_without_dropping_coins(self):
+        markets = ("NONEUSDT", "MONUSDT", "WEEKUSDT", "MONTHUSDT", "QUARTERUSDT", "LATEUSDT", "NAUSDT")
+        watches = (
+            row("MONUSDT", "monday"),
+            dict(row("WEEKUSDT", "previous_week"), source="live"),
+            row("MONTHUSDT", "previous_month", side="low"),
+            row("QUARTERUSDT", "previous_quarter"),
+            # Expired quarterly sweeps are ready again and no longer rank.
+            dict(row("LATEUSDT", "previous_quarter"), status="untouched"),
+            row("LATEUSDT", "monday", side="low"),
+            dict(row("NAUSDT", "previous_quarter"), available=False),
+        )
+        value = dict(snapshot(), markets=markets, watches=watches)
+        expected = ["QUARTERUSDT", "MONTHUSDT", "WEEKUSDT", "MONUSDT", "LATEUSDT", "NONEUSDT", "NAUSDT"]
+        self.assertEqual(matching_symbols(value), expected)
+        self.assertEqual(matching_symbols(value, "swept"), expected[:5])
+        printed = render(render_touch_dashboard(value, width=120))
+        self.assertEqual([symbol for symbol in sorted(markets, key=printed.index)], expected)
+
+    def test_repeat_counts_and_both_sides_do_not_outrank_one_sweep_of_same_timeframe(self):
+        markets = ("ONCEUSDT", "MANYUSDT", "BOTHUSDT", "LOWERUSDT")
+        watches = (
+            row("ONCEUSDT", "previous_month"),
+            dict(row("MANYUSDT", "previous_month"), count=7),
+            dict(row("BOTHUSDT", "previous_month", side="low"), count=3),
+            dict(row("BOTHUSDT", "previous_month", side="high"), count=3),
+            row("LOWERUSDT", "previous_week"), row("LOWERUSDT", "monday"),
+        )
+        value = dict(snapshot(), markets=markets, watches=watches)
+        # Ties keep the selected (volume) order.
+        self.assertEqual(matching_symbols(value), ["ONCEUSDT", "MANYUSDT", "BOTHUSDT", "LOWERUSDT"])
+
+    def test_sorted_pages_still_show_every_coin_once(self):
+        markets = tuple(f"COIN{i:03}USDT" for i in range(100))
+        watches = tuple(row(f"COIN{i:03}USDT", "previous_quarter") for i in range(90, 100))
+        value = dict(snapshot(), markets=markets, watches=watches)
+        first = render(render_touch_dashboard(value, page=0, page_size=10, width=120))
+        self.assertTrue(all(f"COIN{i:03}USDT" in first for i in range(90, 100)))
+        seen = "".join(render(render_touch_dashboard(value, page=page, page_size=10, width=120))
+                       for page in range(10))
+        for number in range(100):
+            self.assertEqual(seen.count(f"COIN{number:03}USDT"), 1)
+
     def test_only_recent_live_events_receive_fresh_emphasis(self):
         history = dict(row(), observed_at=NOW, source="history")
         live = dict(row(), observed_at=NOW - timedelta(seconds=3), source="live")

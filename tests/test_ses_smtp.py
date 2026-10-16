@@ -103,6 +103,17 @@ class SMTPClientTests(unittest.TestCase):
         self.server.close.assert_called_once()
         self.server.quit.assert_not_called()
 
+    def test_html_body_is_sent_as_alternative_with_text_fallback(self):
+        html = "<!doctype html><p>A price touched its level.</p>"
+        body = {**REQUEST["Content"]["Simple"]["Body"], "Html": {"Data": html, "Charset": "UTF-8"}}
+        request = {**REQUEST, "Content": {"Simple": {**REQUEST["Content"]["Simple"], "Body": body}}}
+        self.client().send_email(**request)
+        message = self.server.send_message.call_args.args[0]
+        self.assertEqual(message.get_content_type(), "multipart/alternative")
+        self.assertEqual(message.get_body(("plain",)).get_content().strip(),
+                         REQUEST["Content"]["Simple"]["Body"]["Text"]["Data"])
+        self.assertEqual(message.get_body(("html",)).get_content().strip(), html)
+
     def test_implicit_tls_ports_and_starttls_alternative(self):
         for port in (465, 2465, 2587):
             with self.subTest(port=port):

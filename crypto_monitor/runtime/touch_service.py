@@ -4,8 +4,9 @@ import asyncio
 import logging
 import os
 import sqlite3
+import uuid
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from threading import Event
@@ -15,7 +16,7 @@ from crypto_monitor.adapters.binance_trades import TradeSupervisor
 from crypto_monitor.adapters.touch_email import TouchEmailDispatcher
 from crypto_monitor.core.level_sweep import reference_periods
 from crypto_monitor.core.monitoring_engine import ReferenceLevels
-from crypto_monitor.core.touch_monitor import next_eligible, range_touches
+from crypto_monitor.core.touch_monitor import crosses, next_eligible
 from crypto_monitor.persistence.touch_store import TouchStore
 from crypto_monitor.runtime.touch_history import TouchHistoryScanner
 
@@ -29,8 +30,27 @@ def live_fresh_events(events, live_started):
                  and event["observed_at"] > live_started)
 
 
+@dataclass(frozen=True)
+class PriceState:
+    """Last accepted price; a REST snapshot has no aggregate trade ID."""
+    price: Decimal
+    at: datetime
+    trade_id: int | None
+
+
+def is_newer(tick, state):
+    """Aggregate trade IDs order one symbol; times order snapshot handoffs."""
+    if state.trade_id is not None and tick.trade_id is not None:
+        return tick.trade_id > state.trade_id
+    return tick.at > state.at
+
+
 class TouchRuntime:
-    """All mutable SQLite work belongs to one background thread."""
+    """All mutable SQLite work belongs to one background thread.
+
+    Ordered price state is in memory and shared by every watch of a symbol.
+    History replay and the handoff minute establish it quietly before alerts.
+    """
 
     def __init__(self, settings, policy, progress, cancelled, *, rest_factory=BinanceRESTAdapter,
                  now=lambda: datetime.now(timezone.utc)):
@@ -44,11 +64,14 @@ class TouchRuntime:
         self.last_daily_attempt = None
         self._market_cache = {}
         self._watch_cache = {}
+        self._prices = {}
+        # Fresh panel events belong to this run, independent of clock changes.
+        self.run_id = uuid.uuid4().hex
 
     def _cache_watches(self, symbol):
         """Publish immutable eligibility data after this worker changes state.
 
-        SQLite remains authoritative for accepting a touch. This cache only
+        SQLite remains authoritative for accepting a contact. This cache only
         avoids durable work for prices that cannot produce an activation.
         """
         watches = []
@@ -58,25 +81,35 @@ class TouchRuntime:
             eligible = (next_eligible(watch.name, watch.accepted_at, watch.watch_end,
                                       self.policy.delays)
                         if watch.accepted_at is not None else watch.watch_start)
-            watches.append((watch.side, watch.level_price, watch.watch_start,
-                            watch.watch_end, eligible))
+            if watch.name == "monday" and watch.accepted_at is not None:
+                continue
+            watches.append((watch.level_price, watch.watch_start, watch.watch_end, eligible))
         self._watch_cache[symbol] = tuple(watches)
 
-    def may_touch(self, tick):
-        """Read the cached predicate without I/O, before scheduling SQL work.
+    def ready(self, symbol):
+        """Whether observe() can run on the event loop without database work."""
+        return symbol in self._market_cache and symbol in self._watch_cache
 
-        The service calls this while holding its processing lock. Unknown
-        cache entries take the slower path once so direct runtime callers can
-        still initialize their stores and market lists themselves.
+    def observe(self, tick):
+        """Advance this symbol's ordered price; return the prior price if it may contact.
+
+        No I/O: the service calls this while holding its processing lock.
+        Every newer trade advances state, including trades during a delay,
+        so a later contact compares consecutive prices. Older or repeated
+        trades are ignored and never rewind state. A None result needs no
+        durable work; SQLite still decides acceptance for the others.
         """
-        if tick.symbol not in self._market_cache:
-            return any(market.symbol == tick.symbol for market in self.markets)
-        watches = self._watch_cache.get(tick.symbol)
-        if watches is None:
-            return True
-        return any(start <= tick.at < end and eligible <= tick.at
-                   and range_touches(side, level, tick.price, tick.price)
-                   for side, level, start, end, eligible in watches)
+        state = self._prices.get(tick.symbol)
+        if state is not None and not is_newer(tick, state):
+            return None
+        self._prices[tick.symbol] = PriceState(tick.price, tick.at, tick.trade_id)
+        previous = state.price if state is not None else None
+        if previous is None:
+            return None
+        for level, start, end, eligible in self._watch_cache.get(tick.symbol, ()):
+            if start <= tick.at < end and eligible <= tick.at and crosses(previous, tick.price, level):
+                return previous
+        return None
 
     def check_stop(self):
         if self.cancelled.is_set():
@@ -99,6 +132,9 @@ class TouchRuntime:
         self._market_cache = {market.symbol: market for market in self.markets}
         self._watch_cache = {symbol: watches for symbol, watches in self._watch_cache.items()
                              if symbol in self._market_cache}
+        # A coin that leaves and later returns must not compare with an old price.
+        self._prices = {symbol: state for symbol, state in self._prices.items()
+                        if symbol in self._market_cache}
         self.progress.update(stage="Calculating reference levels", references_done=0, history_done=0,
                              total=len(self.markets))
         self.progress.pop("catchup_done", None)
@@ -152,15 +188,22 @@ class TouchRuntime:
                     raise ValueError("invalid current minute")
                 if row[6] != start + 59999:
                     raise ValueError("invalid current minute ending time")
-                high, low = Decimal(row[2]), Decimal(row[3])
-                if not high.is_finite() or not low.is_finite() or low < 0 or high < low:
+                opening, high, low, close = (Decimal(value) for value in row[1:5])
+                if (not all(value.is_finite() for value in (opening, high, low, close))
+                        or low < 0 or not low <= min(opening, close)
+                        or max(opening, close) > high):
                     raise ValueError("invalid current minute prices")
-                self.store.record_range(market.symbol, low, high, current, self.policy.delays,
-                    origin="history", notify=False, quote_volume=market.quote_volume, verified_only=True)
+                self.store.record_candle(market.symbol, opened=opened, opening=opening, low=low,
+                    high=high, close=close, at=current, delays=self.policy.delays,
+                    origin="history", notify=False, quote_volume=market.quote_volume,
+                    verified_only=True, run_id=self.run_id)
+                # Buffered trades up to this snapshot are already in its range.
+                self._prices[market.symbol] = PriceState(close, current, None)
             except sqlite3.Error:
                 raise
             except Exception as exc:
                 # A missing handoff minute must not be mistaken for untouched.
+                self._prices.pop(market.symbol, None)
                 for watch in self.store.history_jobs(market.symbol):
                     self.store.mark_history_unavailable(market.symbol, watch.name, watch.source_start,
                                                        f"live handoff unavailable: {type(exc).__name__}")
@@ -177,11 +220,19 @@ class TouchRuntime:
             return []
         if tick.symbol not in self._watch_cache:
             self._cache_watches(tick.symbol)
-        if not self.may_touch(tick):
+        previous = self.observe(tick)
+        if previous is None:
             return []
+        return self.record(tick, previous, quiet=quiet, email_enabled=email_enabled,
+                           observed=observed)
+
+    def record(self, tick, previous, *, quiet, email_enabled, observed):
+        """Durably accept a contact that observe() found between two trades."""
+        market = self._market_cache[tick.symbol]
         activations = self.store.record_price(tick.symbol, tick.price, tick.at, self.policy.delays,
-            origin="history" if quiet else "live", notify=email_enabled and not quiet,
-            quote_volume=market.quote_volume, observed_at=observed, verified_only=True)
+            previous=previous, origin="history" if quiet else "live",
+            notify=email_enabled and not quiet, quote_volume=market.quote_volume,
+            observed_at=observed, verified_only=True, trade_id=tick.trade_id, run_id=self.run_id)
         self._cache_watches(tick.symbol)
         return activations
 
@@ -284,7 +335,8 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
         stamp = now()
         def read():
             with TouchStore.open_readonly(settings.database) as store:
-                return store.dashboard_snapshot(runtime.markets, stamp, policy.delays)
+                return store.dashboard_snapshot(runtime.markets, stamp, policy.delays,
+                                                run_id=runtime.run_id)
         try:
             data = await asyncio.to_thread(read)
         except Exception as exc:
@@ -425,16 +477,27 @@ async def run_touch_service(settings, *, policy, stop=None, rest_factory=Binance
                 observed = now()
             last_received = observed
             quiet = (live_started is None or tick.at <= live_started
-                     or tick.at > observed + timedelta(seconds=1)
                      or (observed - tick.at).total_seconds() >= float(policy.max_age_seconds))
             notify = email_enabled and (email_enabled_since is None or tick.at > email_enabled_since)
-            activations = (await work(runtime.process, tick, quiet=quiet,
-                                      email_enabled=notify, observed=observed)
-                           if runtime.may_touch(tick) else [])
+            if tick.at > observed + timedelta(seconds=1):
+                # A trade dated ahead of this clock still orders prices, but
+                # its time cannot start a delay or count as an activation.
+                if runtime.ready(tick.symbol):
+                    runtime.observe(tick)
+                activations = []
+            elif runtime.ready(tick.symbol):
+                previous = runtime.observe(tick)
+                activations = (await work(runtime.record, tick, previous, quiet=quiet,
+                                          email_enabled=notify, observed=observed)
+                               if previous is not None else [])
+            else:
+                activations = await work(runtime.process, tick, quiet=quiet,
+                                         email_enabled=notify, observed=observed)
         if not quiet:
             for activation in activations:
-                LOG.info("LIVE TOUCH %s %s %s price=%s", activation.symbol,
-                         activation.level_name, activation.side, activation.level_price)
+                LOG.info("LIVE TOUCH %s %s %s level=%s price=%s previous=%s", activation.symbol,
+                         activation.level_name, activation.side, activation.level_price,
+                         activation.trigger_price, activation.previous_price)
             if activations and notify and email_enabled and email is not None:
                 email.notify()
 

@@ -7,6 +7,7 @@ response or failed database acknowledgement can still cause a duplicate email.
 """
 
 import asyncio
+import html
 import logging
 import math
 import threading
@@ -24,25 +25,101 @@ LOG = logging.getLogger(__name__)
 SOFIA = ZoneInfo("Europe/Sofia")
 
 
+LEVEL_NAMES = {"monday": "Monday", "previous_week": "Previous week",
+               "previous_month": "Previous month", "previous_quarter": "Previous quarter"}
+
+
+def _day(value):
+    return f"{value.day} {value:%b %Y}"
+
+
+def _reference(name, start):
+    """Readable source period, from its UTC start."""
+    if name == "previous_month":
+        return f"{start:%B %Y}"
+    if name == "previous_quarter":
+        return f"Q{(start.month - 1) // 3 + 1} {start.year}"
+    if name == "monday":
+        return f"Monday {_day(start)}"
+    last = start + timedelta(days=6)
+    if start.year != last.year:
+        return f"{_day(start)} – {_day(last)}"
+    if start.month != last.month:
+        return f"{start.day} {start:%b} – {_day(last)}"
+    return f"{start.day}–{_day(last)}"
+
+
+def _price(value):
+    # Fixed notation keeps every exchange digit without scientific exponents.
+    return format(value, "f")
+
+
+def _market(symbol):
+    base = symbol.removesuffix("USDT")
+    return f"{base} / USDT" if base and base != symbol else symbol
+
+
 def touch_email_content(activation):
-    """One named level and one side per message, preserving exact prices."""
+    """Subject, plain text and HTML for one named level and side.
+
+    Times are shown in Sofia local time, including daylight-saving changes.
+    """
     touched = activation.touched_at
     utc_text(touched)
-    local = touched.astimezone(SOFIA).strftime("%Y-%m-%d %H:%M:%S %Z")
-    subject = f"Crypto level touch: {activation.symbol} {activation.level_name} {activation.side}"
-    body = "\n".join([
-        f"{activation.symbol}: {activation.level_name} {activation.side} touched",
+    local = touched.astimezone(SOFIA)
+    touched_text = f"{_day(local)}, {local:%H:%M:%S}"
+    level = f"{LEVEL_NAMES.get(activation.level_name, activation.level_name)} {activation.side}"
+    reference = _reference(activation.level_name, activation.reference_period_start)
+    price = _price(activation.level_price)
+    subject = f"{activation.symbol} · {level} touched"
+    text = "\n".join([
+        f"{activation.symbol} · {level} touched",
         "",
-        f"Level price: {activation.level_price} USDT",
-        f"Touched at: {local} (Europe/Sofia)",
-        f"UTC time: {utc_text(touched)}",
-        f"Reference start: {utc_text(activation.reference_period_start)}",
-        f"Captured 24h quote volume: {activation.captured_quote_volume} USDT",
-        f"Activation ID: {activation.activation_id}",
-        "",
-        "Price reached or passed this level. No candle close was required.",
+        f"Level price: {price} USDT",
+        f"Reference: {reference}",
+        f"Touched at (Sofia time): {touched_text}",
     ])
-    return subject, body
+    e = html.escape
+    body = f"""<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{e(subject)}</title></head>
+<body style="margin:0;padding:0;background:#f1f4f4;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;background:#f1f4f4;">
+<tr><td align="center" style="padding:32px 12px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:560px;border-collapse:separate;background:#ffffff;border:1px solid #e0e8e5;border-radius:18px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;">
+<tr><td height="5" style="height:5px;background:#139583;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="padding:34px 36px 26px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;">
+<tr><td style="color:#52716a;font-size:11px;line-height:16px;font-weight:700;letter-spacing:2.5px;">CRYPTO MONITOR</td>
+<td align="right" style="color:#148675;font-size:11px;line-height:16px;font-weight:600;">LEVEL TOUCH</td></tr>
+</table>
+<h1 style="margin:30px 0 8px;color:#153a31;font-size:27px;line-height:1.25;font-weight:650;letter-spacing:-0.7px;">{e(_market(activation.symbol))} <span style="color:#82948e;font-size:15px;font-weight:450;letter-spacing:0;white-space:nowrap;">Futures</span></h1>
+<p style="margin:0;color:#647b73;font-size:16px;line-height:1.6;">{e(level)} touched</p>
+</td></tr>
+<tr><td style="padding:0 36px 30px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:separate;background:#f1f8f5;border:1px solid #e0eee7;border-radius:12px;">
+<tr><td style="padding:22px 24px 24px;">
+<p style="margin:0 0 8px;color:#668275;font-size:11px;line-height:17px;font-weight:650;letter-spacing:1.4px;text-transform:uppercase;">Level price</p>
+<p style="margin:0;color:#105a46;font-size:18px;line-height:1.3;word-break:break-all;"><span style="font-size:40px;font-weight:650;letter-spacing:-1.5px;">{e(price)}</span> <span style="color:#749384;font-size:15px;font-weight:550;letter-spacing:.5px;">USDT</span></p>
+</td></tr>
+</table>
+</td></tr>
+<tr><td style="padding:0 36px 34px;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="border-collapse:collapse;font-size:14px;line-height:1.6;">
+<tr><td style="padding:0 0 16px;color:#789087;vertical-align:top;">Reference</td>
+<td align="right" style="padding:0 0 16px;color:#294d3f;font-weight:550;vertical-align:top;">{e(reference)}</td></tr>
+<tr><td colspan="2" height="1" style="height:1px;background:#edf1ee;font-size:0;line-height:0;">&nbsp;</td></tr>
+<tr><td style="padding:16px 0 0;color:#789087;vertical-align:top;">Touched at<span style="display:block;color:#9aa9a1;font-size:11px;">Sofia time</span></td>
+<td align="right" style="padding:16px 0 0;color:#294d3f;font-weight:550;vertical-align:top;">{e(touched_text)}</td></tr>
+</table>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
+    return subject, text, body
 
 
 class TouchEmailDispatcher:
@@ -92,7 +169,7 @@ class TouchEmailDispatcher:
         now = self.now()
         utc_text(now)
         with self.store_factory(self.database) as store:
-            store.expire_touch_outbox(now - self.max_age)
+            store.expire_touch_outbox(now - self.max_age, after=now + self.max_age)
             entries = store.load_touch_outbox(
                 now, limit=self.batch_size if max_count is None else min(max_count, self.batch_size))
 
@@ -105,13 +182,23 @@ class TouchEmailDispatcher:
                 activation = entry.activation
                 attempted_at = self.now()
                 utc_text(attempted_at)
-                if activation.origin != "live" or attempted_at - activation.touched_at >= self.max_age:
+                age = attempted_at - activation.touched_at
+                # A large negative age means the clock moved backward; the
+                # event's real age is unknown, so it is not sent as fresh.
+                if activation.origin != "live" or not -self.max_age < age < self.max_age:
                     with self.store_factory(self.database) as store:
                         store.mute_touch_outbox(activation.activation_id, reason="expired")
                     continue
-                subject, body = touch_email_content(activation)
+                subject, text, body = touch_email_content(activation)
                 with self.store_factory(self.database) as store:
-                    store.begin_touch_outbox_attempt(activation.activation_id, attempted_at)
+                    # The claim fails if another sender already took this row.
+                    # Its lease lasts for the event's freshness window.
+                    claimed = store.begin_touch_outbox_attempt(
+                        activation.activation_id, attempted_at,
+                        expected_attempts=entry.attempt_count,
+                        lease_until=activation.touched_at + self.max_age)
+                if not claimed:
+                    continue
                 try:
                     if client is None:
                         client = self.client_factory(self.settings.region)
@@ -120,7 +207,8 @@ class TouchEmailDispatcher:
                         Destination={"ToAddresses": [self.settings.recipient]},
                         Content={"Simple": {
                             "Subject": {"Data": subject, "Charset": "UTF-8"},
-                            "Body": {"Text": {"Data": body, "Charset": "UTF-8"}},
+                            "Body": {"Text": {"Data": text, "Charset": "UTF-8"},
+                                     "Html": {"Data": body, "Charset": "UTF-8"}},
                         }})
                     message_id = response.get("MessageId") if isinstance(response, dict) else None
                     if not isinstance(message_id, str) or not message_id.strip():

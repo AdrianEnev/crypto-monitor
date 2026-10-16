@@ -99,13 +99,25 @@ def _index(snapshot):
     return {(row["symbol"], _row_name(row), row["side"]): row for row in snapshot.get("watches", ())}
 
 
+def sweep_rank(symbol, index):
+    """Position of the highest timeframe currently swept: quarter 0 … Monday 3, none 4.
+
+    Only the timeframe matters. Repeat counts and sweeping both sides do not
+    raise a coin above another that swept the same timeframe once.
+    """
+    for rank, (name, _) in enumerate(reversed(GROUPS)):
+        if any(_status(index.get((symbol, name, side))) == "swept" for side in ("low", "high")):
+            return rank
+    return len(GROUPS)
+
+
 def matching_symbols(snapshot, filter_mode="all"):
+    """Same coins, higher-timeframe sweeps first; selection order breaks ties."""
     symbols, index = _symbols(snapshot), _index(snapshot)
+    ranked = sorted(symbols, key=lambda symbol: sweep_rank(symbol, index))
     if filter_mode == "swept":
-        return [symbol for symbol in symbols if any(
-            _status(index.get((symbol, name, side))) == "swept"
-            for name, _ in GROUPS for side in ("low", "high"))]
-    return symbols
+        return [symbol for symbol in ranked if sweep_rank(symbol, index) < len(GROUPS)]
+    return ranked
 
 
 def _state_cell(row, name):
